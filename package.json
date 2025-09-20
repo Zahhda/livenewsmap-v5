@@ -1,0 +1,30 @@
+{
+  "name": "live-news-map",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Live News Map with admin, translate-to-English, icons by category, and fast feed caching",
+  "engines": {
+    "node": ">=18 <23"
+  },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "@xenova/transformers": "^2.17.2",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^3.3.2",
+    "rss-parser": "^3.13.0",
+    "socket.io": "^4.7.5"
+  }
+}

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin • Live News Map</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <link rel="apple-touch-icon" href="/img/favicon.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Top bar -->
+  <div class="topbar">
+    <span style="font-weight:600">Admin Panel</span>
+
+    <div id="adminTabs" style="display:inline-flex;gap:8px;margin-left:16px;">
+      <a href="/admin" data-tab="regions" style="text-decoration:none;background:#111;border:1px solid var(--border);padding:8px 10px;border-radius:10px;color:inherit">Regions</a>
+      <a href="/admin/users" data-tab="users" style="text-decoration:none;background:#0b0b0b;border:1px solid var(--border);padding:8px 10px;border-radius:10px;color:var(--muted)">Users</a>
+    </div>
+
+    <!-- Token gate -->
+    <input id="tokenInput" type="text" placeholder="Enter admin token"
+           style="width:260px;" />
+    <button id="saveTokenBtn" class="primary">Use Token</button>
+
+    <!-- Status capsule (will turn green when verified) -->
+    <span id="tokenStatus"
+          class="token-badge"
+          style="display:inline-flex; align-items:center; gap:6px;">
+      Not verified
+    </span>
+
+    <a href="/" style="margin-left:auto;color:#fff;text-decoration:none;">← Back</a>
+  </div>
+
+  <!-- Gate hint (shown until verified) -->
+  <div id="gateNotice"
+       style="padding:14px; border-bottom:1px dashed var(--border); color:var(--muted);">
+    Enter a valid admin token to unlock the admin interface.
+  </div>
+
+  <!-- Main two-column layout: 30% editor (left), 70% list (right) -->
+  <!-- Hidden by default; shown after token verification -->
+  <div id="adminLayout"
+       style="display:none; gap:12px; padding:12px; align-items:flex-start;">
+
+    <!-- LEFT: Create / Edit Region (30%) -->
+    <div style="flex:0 0 30%; border:1px solid var(--border); border-radius:12px;
+                padding:12px; background:#0f0f0f;">
+      <h3 style="margin:0 0 10px 0;">Create / Edit Region</h3>
+
+      <form id="regionForm">
+        <input type="hidden" id="regionId" />
+
+        <div style="display:grid; grid-template-columns:1fr; gap:8px;">
+          <label style="font-size:12px; color:var(--muted);">Name</label>
+          <input style="padding: 6px!important;" id="name" placeholder="Region name" required />
+
+          <label style="font-size:12px; color:var(--muted);">Country</label>
+          <input style="padding: 6px!important;" id="country" placeholder="Country (e.g., Ukraine)" required />
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div>
+              <label style="font-size:12px; color:var(--muted);">Latitude</label>
+              <input style="padding: 6px!important;" id="lat" type="number" step="any" placeholder="e.g., 50.45" required />
+            </div>
+            <div>
+              <label style="font-size:12px; color:var(--muted);">Longitude</label>
+              <input style="padding: 6px!important;" id="lng" type="number" step="any" placeholder="e.g., 30.52" required />
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:12px;">Feeds</div>
+        <div id="feedsWrap"></div>
+        <button type="button" id="addFeedBtn" style="margin:6px 0;">+ Add Feed</button>
+
+        <!-- RSS Validation Alert -->
+        <div id="rssAlert" class="rss-alert" style="display:none; margin:12px 0; padding:12px; background:linear-gradient(135deg, #ff6b35, #f7931e); border:1px solid #ff8c42; border-radius:8px; color:#fff;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span style="font-weight:600;">RSS Feed Validation Required</span>
+          </div>
+          <div style="font-size:14px; opacity:0.9;" id="rssAlertText">
+            Please validate all RSS feeds before saving. Invalid feeds will be highlighted in red.
+          </div>
+        </div>
+
+        <!-- Action Buttons Row -->
+        <div class="action-buttons-row" style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+          <button class="primary" type="submit" style="flex:1; min-width:120px;">Save Region</button>
+          <button type="button" id="validateAllBtn" class="btn btn-validate" style="flex:1; min-width:120px;">Validate All Feeds</button>
+          <button type="button" id="resetBtn" class="btn" style="flex:1; min-width:120px;">Reset</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- RIGHT: Regions (70%) -->
+    <div style="flex:1; border:1px solid var(--border); border-radius:12px;
+                padding:12px; background:#0f0f0f;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <h3 style="margin:0;">Regions</h3>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          <span class="small" style="color:var(--muted);">Filter by country:</span>
+          <select id="countryFilter" style="min-width:180px;">
+            <option value="__ALL__">All countries</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Regions Overview Row -->
+      <div id="regionsOverview" class="regions-overview" style="margin-bottom:16px; padding:12px; background:#1a1a1a; border:1px solid #333; border-radius:8px; display:none;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#ff6b35;">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span style="font-weight:600; color:#fff;">Regions RSS Status Overview</span>
+          </div>
+          <button id="refreshRegionsBtn" class="btn btn-small regions-refresh-btn" style="padding:4px 8px; font-size:12px; background:#333; border:1px solid #555; color:#fff; position:relative; overflow:hidden;">
+            <div class="regions-refresh-content">
+              <svg class="regions-refresh-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+              </svg>
+              <span class="regions-refresh-text">Refresh</span>
+            </div>
+            <div class="regions-refresh-loader" style="display:none;">
+              <div class="regions-spinner"></div>
+              <span class="regions-refresh-text">Validating...</span>
+            </div>
+          </button>
+        </div>
+        <div id="regionsOverviewContent" class="regions-overview-content" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <!-- Regions will be populated here -->
+        </div>
+      </div>
+
+      <div id="regionsList"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"
+       style="position:fixed; right:16px; bottom:16px; padding:10px 14px;
+              background:#111; border:1px solid var(--border); border-left:4px solid var(--accent);
+              color:var(--text); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.35);
+              font-size:14px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+              transform:translateY(8px); z-index:9999;"></div>
+
+  <script src="/admin.js" type="module"></script>
+<script>document.querySelector('#adminTabs a[data-tab="regions"]').style.background='#111';document.querySelector('#adminTabs a[data-tab="regions"]').style.color='inherit';</script>
+</body>
+</html>

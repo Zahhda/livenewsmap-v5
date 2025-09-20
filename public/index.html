@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>Live News Map</title>
+  <link href="/styles.css" rel="stylesheet" />
+  
+  <!-- Mapbox GL JS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js"></script>
+
+  <!-- 🔹 Favicon -->
+  <link rel="icon" type="image/png" href="/img/favicon.png" />
+  <!-- Optional: Apple touch icon (for iOS home screen) -->
+  <link rel="apple-touch-icon" href="/img/favicon.png" />
+</head>
+
+  <body>
+    <!-- Top controls -->
+    <div class="topbar">
+      <div id="topbar-left"
+        style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+
+        <!-- 🔹 Logo -->
+        <a href="/" style="display:flex;align-items:center;gap:6px;text-decoration:none;color:inherit;font-weight:700">
+          <img src="/img/logo.png" alt="Live News Map" style="height:32px;width:auto;border-radius:6px" />
+          <span style="font-size:16px;">Live News Map</span>
+        </a>
+
+        <!-- Country / Region controls -->
+        <button id="countrySelector" class="custom-selector" title="Select Country">
+          <span id="countrySelectorText">Select Country</span>
+          <span class="selector-arrow">▼</span>
+        </button>
+        <button id="regionSelector" class="custom-selector" title="Select Region">
+          <span id="regionSelectorText">Select Region</span>
+          <span class="selector-arrow">▼</span>
+        </button>
+        <button id="refreshBtn" title="Refresh current region">
+          <svg class="refresh-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; margin-right: 6px;">
+            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/>
+          </svg>
+          Refresh
+        </button>
+
+        <!-- Dominant badge -->
+        <span class="token-badge" id="dominantBadge"
+          style="display:inline-flex;align-items:center;justify-content:center;
+                 width:60px;height:24px;padding:0;background:#111;
+                 border:1px solid var(--border);border-radius:8px;
+                 color:var(--muted);font-size:12px;white-space:nowrap;
+                 overflow:hidden;text-overflow:ellipsis;"
+          title="Dominant news category for region">—</span>
+
+        <!-- 3-light severity signal bar -->
+        <div aria-label="Severity signal" class="signalbar"
+          id="severitySignalBar" role="group">
+          <span class="light red" title="Red: war/climate"></span>
+          <span class="light yellow" title="Yellow: culture/society"></span>
+          <span class="light green" title="Green: other"></span>
+        </div>
+      </div>
+
+      <!-- Right auth area -->
+      <div id="authArea" style="margin-left:auto;display:flex;gap:8px;align-items:center"></div>
+    </div>
+
+    <!-- Main layout -->
+    <div class="layout">
+      <div id="map"></div>
+      <div class="sidebar">
+        <!-- News Marquee -->
+        <div class="news-marquee-container">
+          <div class="news-marquee" id="newsMarquee">
+            <div class="marquee-content">
+              <span class="marquee-text">Loading latest news...</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-title">Latest News</div>
+        <div id="newsList"></div>
+      </div>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+
+    <!-- Auth modal -->
+    <div id="authModal"
+      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);
+             align-items:center;justify-content:center;z-index:60">
+      <div style="background:#0b0b0b;border:1px solid #333;border-radius:12px;
+                  width:420px;max-width:90vw">
+        <div style="display:flex;border-bottom:1px solid #222">
+          <button class="tabBtn" data-tab="login"
+            style="flex:1;padding:10px;background:#111;border:0;color:#ddd;cursor:pointer">Login</button>
+          <button class="tabBtn" data-tab="signup"
+            style="flex:1;padding:10px;background:#0b0b0b;border:0;color:#aaa;cursor:pointer">Sign up</button>
+          <button id="closeAuth"
+            style="padding:10px;border:0;background:transparent;color:#999;font-size:18px">✕</button>
+        </div>
+        <div id="authBody" style="padding:16px"></div>
+      </div>
+    </div>
+
+    <!-- Region Access Request Modal -->
+    <div id="regionRequestModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:1000">
+      <div style="background:#0b0b0b;border:1px solid #333;border-radius:12px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+          <div style="font-weight:700;font-size:18px">Request Region Access</div>
+          <button id="closeRegionRequestModal" style="margin-left:auto;border:0;background:transparent;font-size:18px;cursor:pointer;color:#999">✕</button>
+        </div>
+        
+        <div style="background:#111;border:1px solid #333;border-radius:8px;padding:12px;margin-bottom:20px">
+          <div style="color:#ff9999;font-size:14px;margin-bottom:8px">📋 Free Trial Information</div>
+          <div style="color:#ddd;font-size:13px;line-height:1.4">
+            • You can request access to up to 3 countries<br>
+            • Each country includes 2 regions<br>
+            • One request per 48 hours<br>
+            • Admin approval required
+          </div>
+        </div>
+
+        <div id="requestStatus" style="margin-bottom:20px"></div>
+
+        <div style="margin-bottom:20px">
+          <label style="display:block;color:#fff;font-weight:600;margin-bottom:8px">Select Countries (Max 3)</label>
+          <div id="countrySelection" style="max-height:200px;overflow-y:auto;border:1px solid #333;border-radius:8px;padding:8px">
+            <!-- Countries will be populated here -->
+          </div>
+          <div id="selectedCount" style="color:#888;font-size:12px;margin-top:4px">Selected: 0/3</div>
+        </div>
+
+        <div style="margin-bottom:20px">
+          <label style="display:block;color:#fff;font-weight:600;margin-bottom:8px">Selected Regions</label>
+          <div id="regionPreview" style="background:#111;border:1px solid #333;border-radius:8px;padding:8px;min-height:60px;color:#888;font-size:13px">
+            Select countries to see available regions
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="cancelRegionRequest" class="btn" style="padding:8px 16px;border:1px solid #333;border-radius:8px">Cancel</button>
+          <button id="submitRegionRequest" class="btn" style="padding:8px 16px;border:1px solid #333;border-radius:8px;background:#ff4d4d;color:#fff" disabled>Submit Request</button>
+        </div>
+        
+        <div id="regionRequestErr" style="color:#e66;margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- Notification System -->
+    <div id="notificationContainer" style="position:fixed;top:20px;right:20px;z-index:9999;pointer-events:none"></div>
+
+    <!-- News Popup (Bottom Left) -->
+    <div id="newsPopup" class="news-popup" style="display:none;">
+      <div class="news-popup-content">
+        <div class="news-popup-header">
+          <div class="news-popup-title">Latest News</div>
+          <button id="closeNewsPopup" class="news-popup-close">×</button>
+        </div>
+        <div class="news-popup-body">
+          <div class="news-popup-image-container">
+            <img id="newsPopupImage" class="news-popup-image" src="" alt="" style="display:none;">
+          </div>
+          <div class="news-popup-text">
+            <h3 id="newsPopupTitle" class="news-popup-news-title"></h3>
+            <p id="newsPopupSummary" class="news-popup-summary"></p>
+            <div class="news-popup-meta">
+              <span id="newsPopupSource" class="news-popup-source"></span>
+              <span id="newsPopupDate" class="news-popup-date"></span>
+            </div>
+            <div class="news-popup-actions">
+              <a id="newsPopupLink" class="news-popup-read-more" href="#" target="_blank" rel="noopener">Read Full Article</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Country Selector Popup -->
+    <div id="countryPopup" class="selector-popup" style="display:none;">
+      <div class="selector-popup-content">
+        <div class="selector-popup-header">
+          <h3>Select Country</h3>
+          <button id="closeCountryPopup" class="selector-popup-close">×</button>
+        </div>
+        <div class="selector-popup-body">
+          <div class="selector-search">
+            <input type="text" id="countrySearch" placeholder="Search countries..." class="selector-search-input">
+          </div>
+          <div id="countryList" class="selector-list">
+            <!-- Countries will be populated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Region Selector Popup -->
+    <div id="regionPopup" class="selector-popup" style="display:none;">
+      <div class="selector-popup-content">
+        <div class="selector-popup-header">
+          <h3>Select Region</h3>
+          <button id="closeRegionPopup" class="selector-popup-close">×</button>
+        </div>
+        <div class="selector-popup-body">
+          <div id="regionPopupMessage" class="selector-message" style="display:none;">
+            <div class="message-icon">ℹ️</div>
+            <div class="message-text">Please select a country first to view available regions.</div>
+          </div>
+          <div class="selector-search" id="regionSearchContainer" style="display:none;">
+            <input type="text" id="regionSearch" placeholder="Search regions..." class="selector-search-input">
+          </div>
+          <div id="regionList" class="selector-list">
+            <!-- Regions will be populated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Location Sharing Icon -->
+    <div id="locationIcon">
+      <svg class="location-icon" viewBox="0 0 24 24">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+      </svg>
+    </div>
+
+    <script src="/auth.js"></script>
+  </body>
+</html>
