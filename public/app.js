@@ -120,6 +120,264 @@ function showToast(message, type = 'info') {
   }
 }
 
+// AI News Classification System
+const AI_CLASSIFICATION_CONFIG = {
+  // Using Hugging Face's free inference API
+  apiUrl: 'https://api-inference.huggingface.co/models/facebook/bart-large-mnli',
+  // Fallback to a simpler model if the main one fails
+  fallbackApiUrl: 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium',
+  // News categories we want to classify into
+  categories: [
+    'politics',
+    'technology', 
+    'business',
+    'health',
+    'sports',
+    'entertainment',
+    'science',
+    'world',
+    'environment',
+    'education',
+    'crime',
+    'weather',
+    'others'
+  ],
+  // Category mapping to our existing icons
+  categoryMapping: {
+    'politics': 'politics',
+    'technology': 'technology',
+    'business': 'business', 
+    'health': 'health',
+    'sports': 'sports',
+    'entertainment': 'entertainment',
+    'science': 'science',
+    'world': 'world',
+    'environment': 'environment',
+    'education': 'education',
+    'crime': 'crime',
+    'weather': 'weather',
+    'others': 'others'
+  }
+};
+
+// AI Classification function
+async function classifyNewsWithAI(newsItem) {
+  try {
+    console.log('🤖 Classifying news with AI:', newsItem.title);
+    
+    // Prepare text for classification
+    const textToClassify = `${newsItem.title}. ${newsItem.summary || ''}`.trim();
+    
+    if (!textToClassify || textToClassify.length < 10) {
+      console.log('⚠️ Text too short for AI classification, using fallback');
+      return getFallbackCategory(newsItem);
+    }
+
+    // Try primary AI model first
+    let classification = await classifyWithModel(textToClassify, AI_CLASSIFICATION_CONFIG.apiUrl);
+    
+    // If primary fails, try fallback
+    if (!classification || classification.error) {
+      console.log('🔄 Primary AI model failed, trying fallback...');
+      classification = await classifyWithModel(textToClassify, AI_CLASSIFICATION_CONFIG.fallbackApiUrl);
+    }
+
+    // If both fail, use fallback category
+    if (!classification || classification.error) {
+      console.log('⚠️ AI classification failed, using fallback category');
+      return getFallbackCategory(newsItem);
+    }
+
+    // Extract the best category from AI response
+    const bestCategory = extractBestCategory(classification);
+    console.log('✅ AI classified as:', bestCategory);
+    
+    return bestCategory;
+
+  } catch (error) {
+    console.error('❌ AI classification error:', error);
+    return getFallbackCategory(newsItem);
+  }
+}
+
+// Classify text using a specific model
+async function classifyWithModel(text, apiUrl) {
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer hf_your_token_here' // This would be a real token in production
+      },
+      body: JSON.stringify({
+        inputs: text,
+        parameters: {
+          candidate_labels: AI_CLASSIFICATION_CONFIG.categories,
+          multi_label: false
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Model classification error:', error);
+    return { error: error.message };
+  }
+}
+
+// Extract the best category from AI response
+function extractBestCategory(classification) {
+  try {
+    if (Array.isArray(classification) && classification.length > 0) {
+      const result = classification[0];
+      if (result.labels && result.scores) {
+        // Find the label with the highest score
+        const maxScoreIndex = result.scores.indexOf(Math.max(...result.scores));
+        const bestLabel = result.labels[maxScoreIndex];
+        const confidence = result.scores[maxScoreIndex];
+        
+        console.log(`🎯 Best match: ${bestLabel} (confidence: ${(confidence * 100).toFixed(1)}%)`);
+        
+        // Only return if confidence is above 30%
+        if (confidence > 0.3) {
+          return AI_CLASSIFICATION_CONFIG.categoryMapping[bestLabel] || 'others';
+        }
+      }
+    }
+    
+    return 'others';
+  } catch (error) {
+    console.error('Error extracting category:', error);
+    return 'others';
+  }
+}
+
+// Fallback category detection using simple keyword matching
+function getFallbackCategory(newsItem) {
+  const text = `${newsItem.title} ${newsItem.summary || ''}`.toLowerCase();
+  
+  // Keyword-based classification
+  const keywordMap = {
+    'politics': ['election', 'government', 'minister', 'president', 'parliament', 'vote', 'political', 'policy', 'democracy'],
+    'technology': ['tech', 'software', 'ai', 'computer', 'digital', 'internet', 'app', 'phone', 'robot', 'cyber'],
+    'business': ['business', 'economy', 'market', 'stock', 'company', 'corporate', 'finance', 'bank', 'trade'],
+    'health': ['health', 'medical', 'doctor', 'hospital', 'disease', 'medicine', 'covid', 'pandemic', 'vaccine'],
+    'sports': ['sport', 'football', 'soccer', 'basketball', 'tennis', 'olympic', 'championship', 'team', 'player'],
+    'entertainment': ['movie', 'music', 'celebrity', 'actor', 'singer', 'film', 'show', 'entertainment', 'famous'],
+    'science': ['science', 'research', 'study', 'discovery', 'experiment', 'scientist', 'space', 'climate'],
+    'environment': ['environment', 'climate', 'pollution', 'green', 'sustainable', 'carbon', 'renewable', 'earth'],
+    'crime': ['crime', 'police', 'arrest', 'murder', 'theft', 'robbery', 'criminal', 'jail', 'prison'],
+    'weather': ['weather', 'rain', 'snow', 'storm', 'temperature', 'forecast', 'hurricane', 'flood']
+  };
+
+  // Count matches for each category
+  const categoryScores = {};
+  for (const [category, keywords] of Object.entries(keywordMap)) {
+    categoryScores[category] = keywords.reduce((count, keyword) => {
+      return count + (text.includes(keyword) ? 1 : 0);
+    }, 0);
+  }
+
+  // Find category with most matches
+  const bestCategory = Object.entries(categoryScores).reduce((a, b) => 
+    categoryScores[a[0]] > categoryScores[b[0]] ? a : b
+  )[0];
+
+  // Return best category if it has matches, otherwise 'others'
+  return categoryScores[bestCategory] > 0 ? bestCategory : 'others';
+}
+
+// Enhanced news processing with AI classification
+async function processNewsWithAI(newsItems) {
+  console.log('🤖 Processing news with AI classification...');
+  
+  // Show AI processing indicator
+  showAIProcessingIndicator();
+  
+  const processedItems = [];
+  
+  for (const item of newsItems) {
+    try {
+      // Get AI classification
+      const aiCategory = await classifyNewsWithAI(item);
+      
+      // Update the news item with AI classification
+      const processedItem = {
+        ...item,
+        category: aiCategory,
+        aiClassified: true,
+        originalCategory: item.category || 'unknown'
+      };
+      
+      processedItems.push(processedItem);
+      
+      // Add small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+    } catch (error) {
+      console.error('Error processing news item:', error);
+      // Add original item with fallback category
+      processedItems.push({
+        ...item,
+        category: getFallbackCategory(item),
+        aiClassified: false
+      });
+    }
+  }
+  
+  // Hide AI processing indicator
+  hideAIProcessingIndicator();
+  
+  console.log(`✅ AI processing complete: ${processedItems.length} items processed`);
+  return processedItems;
+}
+
+// Show AI processing indicator
+function showAIProcessingIndicator() {
+  const indicator = document.createElement('div');
+  indicator.id = 'aiProcessingIndicator';
+  indicator.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 20px 30px;
+      border-radius: 12px;
+      z-index: 10000;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    ">
+      <div style="
+        width: 40px;
+        height: 40px;
+        border: 3px solid #00b37e;
+        border-top: 3px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 15px;
+      "></div>
+      <div style="font-size: 16px; font-weight: 600; margin-bottom: 5px;">🤖 AI Classification</div>
+      <div style="font-size: 14px; color: #ccc;">Analyzing news content...</div>
+    </div>
+  `;
+  document.body.appendChild(indicator);
+}
+
+// Hide AI processing indicator
+function hideAIProcessingIndicator() {
+  const indicator = document.getElementById('aiProcessingIndicator');
+  if (indicator) {
+    indicator.remove();
+  }
+}
+
 // Region request state
 let allAvailableCountries = [];
 let allAvailableRegions = [];
@@ -217,22 +475,22 @@ async function refreshData(buttonId = 'refreshBtn') {
   `;
   
   // Start refresh operations in background (don't wait for them)
-  const refreshPromises = [
-    loadUserVisibilitySettings().catch(e => console.warn('Settings failed:', e)),
-    renderAllRegionMarkers(true).catch(e => console.warn('Regions failed:', e)),
-    refreshNewsData().catch(e => console.warn('News failed:', e))
-  ];
-  
+    const refreshPromises = [
+      loadUserVisibilitySettings().catch(e => console.warn('Settings failed:', e)),
+      renderAllRegionMarkers(true).catch(e => console.warn('Regions failed:', e)),
+      refreshNewsData().catch(e => console.warn('News failed:', e))
+    ];
+    
   // Wait exactly 4 seconds, then show completion
   await new Promise(resolve => setTimeout(resolve, 4000));
-  
+    
   // Show completion after 4 seconds
-  refreshBtn.classList.remove('refresh-pulsing');
-  refreshBtn.classList.add('refresh-success');
-  refreshBtn.innerHTML = `
-    <svg class="refresh-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/>
-    </svg>
+    refreshBtn.classList.remove('refresh-pulsing');
+    refreshBtn.classList.add('refresh-success');
+    refreshBtn.innerHTML = `
+      <svg class="refresh-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
+        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/>
+      </svg>
     Completed
   `;
   
@@ -271,14 +529,22 @@ async function refreshNewsData() {
       if (res.ok) {
         const data = await res.json();
         if (data.items && data.items.length > 0) {
-          // Update news list
-          renderNewsList(data.items);
+          // Process news with AI classification
+          console.log('🤖 Starting AI classification for news items...');
+          const aiProcessedItems = await processNewsWithAI(data.items);
+          
+          // Update news list with AI-classified items
+          renderNewsList(aiProcessedItems);
           
           // Update news count
           const newsCountEl = document.getElementById('newsCount');
           if (newsCountEl) {
             newsCountEl.textContent = data.count || data.items.length;
           }
+          
+          // Show AI classification summary
+          const aiClassifiedCount = aiProcessedItems.filter(item => item.aiClassified).length;
+          console.log(`🤖 AI Classification Summary: ${aiClassifiedCount}/${aiProcessedItems.length} items classified by AI`);
         }
       } else {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -490,7 +756,7 @@ function initLocationSharing() {
   locationIcon.addEventListener('click', (event) => {
     console.log('TEST: Basic click handler triggered!');
   });
-  
+
   // Check if user is logged in and show/hide icon accordingly
   updateLocationIconVisibility();
 
@@ -503,7 +769,7 @@ function initLocationSharing() {
 
     // Show loading animation with "Location Sending" text
     showLocationLoading();
-    
+
     // Show loading state immediately
     locationIcon.style.background = 'linear-gradient(135deg, #555, #777)';
     locationIcon.querySelector('.location-icon').innerHTML = '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>';
@@ -2101,7 +2367,7 @@ async function submitRegionRequest() {
 
 // Start cooldown timer
 function startCooldownTimer() {
-  const cooldownEnds = Date.now() + (5 * 1000); // 5 seconds
+  const cooldownEnds = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 days
   
   function updateTimer() {
     const now = Date.now();
@@ -2114,16 +2380,35 @@ function startCooldownTimer() {
       if (requestBtn) {
         requestBtn.textContent = 'Request Access';
         requestBtn.disabled = false;
+        requestBtn.style.background = 'transparent';
+        requestBtn.style.color = '#ff4d4d';
       }
       return;
     }
     
-    const seconds = Math.ceil(remaining / 1000);
+    // Calculate days, hours, minutes, seconds
+    const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+    
+    let timeString = '';
+    if (days > 0) {
+      timeString = `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+      timeString = `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      timeString = `${minutes}m ${seconds}s`;
+    } else {
+      timeString = `${seconds}s`;
+    }
     
     const requestBtn = document.getElementById('requestAccessBtn');
     if (requestBtn) {
-      requestBtn.textContent = `Request Access (${seconds}s)`;
+      requestBtn.textContent = `Request Access (${timeString})`;
       requestBtn.disabled = true;
+      requestBtn.style.background = '#333';
+      requestBtn.style.color = '#888';
     }
   }
   
@@ -2439,7 +2724,7 @@ async function selectRegion(regionId, force=false){
 
   const payload = await getRegionPayload(regionId, force);
   const cat = latestCategory(payload.items);
-  renderRegion(region, payload, cat);
+  await renderRegion(region, payload, cat);
 
   const marker = markers.get(regionId);
   if(marker){
@@ -3014,7 +3299,7 @@ async function saveReadLater(it) {
 }
 
 // ---------- existing region renderer (now uses new list/detail) ----------
-function renderRegion(region, payload, latestCat){
+async function renderRegion(region, payload, latestCat){
   const computed = latestCat || latestCategory(payload.items);
   document.getElementById('dominantBadge').textContent = ` ${computed}`;
 
@@ -3023,8 +3308,22 @@ function renderRegion(region, payload, latestCat){
   updateSignalBar(severityFromCategory(computed));
   ensureDetailStyles();
 
-  // keep list cache and render as list (click → detail)
-  newsListCache = payload.items || [];
+  // Process news with AI classification
+  const newsItems = payload.items || [];
+  if (newsItems.length > 0) {
+    console.log('🤖 Starting AI classification for region news...');
+    const aiProcessedItems = await processNewsWithAI(newsItems);
+    
+    // Update news list cache with AI-classified items
+    newsListCache = aiProcessedItems;
+    
+    // Show AI classification summary
+    const aiClassifiedCount = aiProcessedItems.filter(item => item.aiClassified).length;
+    console.log(`🤖 AI Classification Summary: ${aiClassifiedCount}/${aiProcessedItems.length} items classified by AI`);
+  } else {
+    newsListCache = newsItems;
+  }
+  
   const list = document.getElementById('newsList');
   if (!list) return;
   renderNewsList(newsListCache);

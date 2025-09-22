@@ -760,15 +760,18 @@ button.primary:hover {
     text-decoration: none;
     color: inherit;
     font-weight: 700;
+    height: 28px;
   }
   
   .topbar #topbar-left > a img {
     height: 28px;
     width: auto;
+    flex-shrink: 0;
   }
   
   .topbar #topbar-left > a span {
     font-size: 16px;
+    line-height: 1;
   }
   
   /* Hide desktop controls on mobile first row */
@@ -783,13 +786,21 @@ button.primary:hover {
     font-size: 11px;
     padding: 4px 8px;
     min-width: 50px;
+    height: 24px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   
   .signalbar {
     order: 2;
     width: auto;
+    height: 24px;
     justify-content: flex-end;
     margin: 0;
+    display: flex;
+    align-items: center;
   }
   
   /* Second row: Country/Region selectors and refresh button */
@@ -809,6 +820,8 @@ button.primary:hover {
     min-width: 120px;
     padding: 8px 12px;
     font-size: 13px;
+    height: 36px;
+    box-sizing: border-box;
   }
   
   .topbar-controls #refreshBtn {
@@ -824,8 +837,10 @@ button.primary:hover {
     align-items: center;
     gap: 6px;
     min-width: 100px;
+    height: 36px;
     justify-content: center;
     flex-shrink: 0;
+    box-sizing: border-box;
   }
   
   .topbar-controls #refreshBtn:hover {
@@ -983,20 +998,24 @@ button.primary:hover {
     gap: 6px;
   }
   
-  .custom-selector {
-    min-width: 80px;
-    padding: 4px 6px;
-    font-size: 11px;
+  .topbar-controls .custom-selector {
+    min-width: 120px;
+    padding: 8px 12px;
+    font-size: 13px;
+    height: 36px;
+    box-sizing: border-box;
   }
   
   .custom-selector .selector-arrow {
     font-size: 10px;
   }
   
-  #refreshBtn {
-    padding: 4px 8px;
-    font-size: 11px;
-    min-width: 80px;
+  .topbar-controls #refreshBtn {
+    padding: 8px 16px;
+    font-size: 13px;
+    min-width: 100px;
+    height: 36px;
+    box-sizing: border-box;
   }
   
   .token-badge {
@@ -1148,16 +1167,20 @@ button.primary:hover {
     padding: 4px;
   }
   
-  .custom-selector {
-    min-width: 70px;
-    padding: 3px 5px;
-    font-size: 10px;
+  .topbar-controls .custom-selector {
+    min-width: 120px;
+    padding: 8px 12px;
+    font-size: 13px;
+    height: 36px;
+    box-sizing: border-box;
   }
   
-  #refreshBtn {
-    padding: 3px 6px;
-    font-size: 10px;
-    min-width: 70px;
+  .topbar-controls #refreshBtn {
+    padding: 8px 16px;
+    font-size: 13px;
+    min-width: 100px;
+    height: 36px;
+    box-sizing: border-box;
   }
   
   .token-badge {
