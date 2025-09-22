@@ -4410,8 +4410,23 @@ button.primary:hover {
 }
 
 .region-status-indicator.unknown {
+  background: #666;
+  box-shadow: 0 0 4px rgba(102, 102, 102, 0.5);
+}
+
+.region-status-indicator.partial {
   background: #ff6b35;
   box-shadow: 0 0 4px rgba(255, 107, 53, 0.5);
+}
+
+.region-status-indicator.no-feeds {
+  background: #888;
+  box-shadow: 0 0 4px rgba(136, 136, 136, 0.5);
+}
+
+.region-status-indicator.error {
+  background: #ff4444;
+  box-shadow: 0 0 4px rgba(255, 68, 68, 0.5);
 }
 
 .region-name {
@@ -4715,6 +4730,30 @@ button.primary:hover {
   50% {
     opacity: 0.6;
   }
+}
+
+/* RSS Status Classes */
+.rss-unknown {
+  color: #888;
+}
+
+.rss-info {
+  color: #3ea6ff;
+}
+
+.rss-valid {
+  color: #00b37e;
+  font-weight: 600;
+}
+
+.rss-partial {
+  color: #ff6b35;
+  font-weight: 600;
+}
+
+.rss-invalid {
+  color: #e10600;
+  font-weight: 600;
 }
 
 

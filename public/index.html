@@ -89,34 +89,31 @@
     <div class="layout">
       <div id="map" style="position:relative">
         <!-- Earth Scanning AI Icon - Desktop -->
-        <div id="neuralNetworkIcon" class="earth-scanning-icon" style="
+        <button id="aiClassificationBtn" class="ai-classification-btn" style="
           position: absolute;
           top: 20px;
           left: 20px;
-          width: 50px;
-          height: 50px;
-          background: linear-gradient(135deg, #00b37e 0%, #00d4aa 100%);
-          border-radius: 50%;
+          background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+          border: none;
+          border-radius: 25px;
+          padding: 12px 20px;
+          color: white;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
+          transition: all 0.3s ease;
+          z-index: 1000;
           display: flex;
           align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          cursor: pointer;
-          box-shadow: 0 4px 20px rgba(0, 179, 126, 0.3);
-          transition: all 0.3s ease;
-          opacity: 0;
-          transform: scale(0.8);
+          gap: 8px;
         ">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M2 12h20"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 12l2 2 4-4"/>
+            <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c1.5 0 2.9.37 4.13 1.02"/>
           </svg>
-          <!-- Earth scanning animation rings -->
-          <div class="scan-ring scan-ring-1"></div>
-          <div class="scan-ring scan-ring-2"></div>
-          <div class="scan-ring scan-ring-3"></div>
-        </div>
+          <span>AI Classify</span>
+        </button>
       </div>
       <div class="sidebar">
         <!-- News Marquee -->

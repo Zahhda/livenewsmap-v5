@@ -28,6 +28,162 @@ import { ensureSeedAdmin } from './src/utils/seedAdmin.js';
 // Store active SSE connections for real-time notifications
 const sseConnections = new Map();
 
+// ML Classification Configuration
+const ML_CLASSIFICATION_CONFIG = {
+  pythonServerUrl: 'http://localhost:8001',
+  fallbackToHuggingFace: true,
+  categories: {
+    'war': ['war', 'conflict', 'military', 'attack', 'bomb', 'explosion', 'violence', 'terrorism', 'combat', 'battle', 'siege', 'invasion', 'defense', 'soldier', 'casualty', 'wounded', 'killed', 'hostage', 'refugee', 'displaced', 'evacuation', 'resistance', 'rebellion', 'uprising', 'assassination', 'murder', 'massacre', 'genocide'],
+    'climate': ['climate', 'weather', 'environment', 'global warming', 'carbon', 'emission', 'pollution', 'drought', 'flood', 'hurricane', 'typhoon', 'cyclone', 'tsunami', 'earthquake', 'volcano', 'landslide', 'heatwave', 'cold snap', 'blizzard', 'hail', 'thunderstorm', 'monsoon', 'natural disaster', 'environmental crisis', 'climate change', 'green energy', 'renewable', 'sustainability'],
+    'culture': ['culture', 'art', 'music', 'movie', 'film', 'book', 'literature', 'festival', 'celebration', 'tradition', 'heritage', 'museum', 'gallery', 'theater', 'concert', 'performance', 'exhibition', 'award', 'prize', 'entertainment', 'sports', 'game', 'tournament', 'championship', 'olympic', 'world cup', 'fashion', 'design', 'architecture'],
+    'society': ['society', 'social', 'community', 'health', 'education', 'school', 'university', 'hospital', 'medical', 'doctor', 'patient', 'disease', 'virus', 'pandemic', 'epidemic', 'quarantine', 'lockdown', 'vaccine', 'treatment', 'cure', 'outbreak', 'healthcare', 'welfare', 'poverty', 'homeless', 'unemployment', 'economy', 'business', 'company', 'market', 'stock', 'trade', 'employment', 'job', 'work', 'labor', 'union', 'strike', 'protest', 'demonstration', 'rally', 'march', 'petition', 'campaign', 'election', 'vote', 'government', 'politics', 'policy', 'law', 'legal', 'court', 'judge', 'trial', 'verdict', 'sentence', 'prison', 'jail', 'arrest', 'charge', 'crime', 'theft', 'robbery', 'fraud', 'corruption', 'scandal', 'investigation', 'police', 'security', 'safety', 'accident', 'incident', 'emergency', 'rescue', 'fire', 'explosion', 'collision', 'crash']
+  },
+  categoryMapping: {
+    'war': 'war',
+    'climate': 'climate', 
+    'culture': 'culture',
+    'society': 'society',
+    'others': 'others'
+  },
+  minConfidence: 0.3,
+  batchSize: 10,
+  isClassifying: false,
+  classificationQueue: []
+};
+
+// Fallback Hugging Face Configuration
+const HUGGING_FACE_CONFIG = {
+  apiUrl: 'https://api-inference.huggingface.co/models/xlm-roberta-large-xnli',
+  fallbackApiUrl: 'https://api-inference.huggingface.co/models/facebook/mbart-large-50-many-to-many-mmt',
+  speedApiUrl: 'https://api-inference.huggingface.co/models/facebook/mbart-large-50-many-to-many-mmt'
+};
+
+// ML Classification Functions
+async function checkMLServerHealth() {
+  try {
+    const response = await fetch(`${ML_CLASSIFICATION_CONFIG.pythonServerUrl}/health`, {
+      method: 'GET',
+      timeout: 5000
+    });
+    return response.ok;
+  } catch (error) {
+    console.log('ML Server not available:', error.message);
+    return false;
+  }
+}
+
+async function classifyWithML(newsItems, regionId = null, regionName = null) {
+  try {
+    const isMLServerAvailable = await checkMLServerHealth();
+    
+    if (!isMLServerAvailable) {
+      console.log('ML Server not available, using fallback classification');
+      return await classifyWithFallback(newsItems);
+    }
+    
+    const requestData = {
+      news_items: newsItems.map(item => ({
+        title: item.title || '',
+        description: item.description || '',
+        content: item.content || '',
+        url: item.url || '',
+        publishedAt: item.publishedAt || ''
+      })),
+      region_id: regionId,
+      region_name: regionName
+    };
+    
+    const response = await fetch(`${ML_CLASSIFICATION_CONFIG.pythonServerUrl}/classify-batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`ML Server error: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log(`ML Classification completed: ${result.results.length} items in ${result.processing_time}s`);
+    console.log(`ML Accuracy: ${result.accuracy_stats.accuracy.toFixed(3)}`);
+    
+    return result.results;
+    
+  } catch (error) {
+    console.error('ML Classification error:', error);
+    return await classifyWithFallback(newsItems);
+  }
+}
+
+async function classifyWithFallback(newsItems) {
+  console.log('Using fallback keyword-based classification');
+  
+  const results = newsItems.map(item => {
+    const text = `${item.title || ''} ${item.description || ''} ${item.content || ''}`.toLowerCase();
+    
+    const categoryScores = {};
+    for (const [category, keywords] of Object.entries(ML_CLASSIFICATION_CONFIG.categories)) {
+      let score = 0;
+      for (const keyword of keywords) {
+        if (text.includes(keyword.toLowerCase())) {
+          score += 1;
+        }
+      }
+      categoryScores[category] = score;
+    }
+    
+    const bestCategory = Object.keys(categoryScores).reduce((a, b) => 
+      categoryScores[a] > categoryScores[b] ? a : b
+    );
+    
+    const confidence = categoryScores[bestCategory] / Math.max(1, Object.values(categoryScores).reduce((a, b) => a + b, 0));
+    
+    return {
+      ...item,
+      category: bestCategory,
+      confidence: confidence,
+      score: categoryScores[bestCategory],
+      is_reliable: confidence > 0.3,
+      ai_classified: true,
+      ml_model: 'fallback_keyword_classifier'
+    };
+  });
+  
+  return results;
+}
+
+async function submitFeedbackToML(text, correctCategory, predictedCategory, confidence) {
+  try {
+    const isMLServerAvailable = await checkMLServerHealth();
+    
+    if (!isMLServerAvailable) {
+      console.log('ML Server not available, skipping feedback');
+      return;
+    }
+    
+    const response = await fetch(`${ML_CLASSIFICATION_CONFIG.pythonServerUrl}/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text: text,
+        correct_category: correctCategory,
+        predicted_category: predictedCategory,
+        confidence: confidence
+      })
+    });
+    
+    if (response.ok) {
+      console.log('Feedback submitted to ML server successfully');
+    }
+  } catch (error) {
+    console.error('Failed to submit feedback to ML server:', error);
+  }
+}
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -209,6 +365,82 @@ app.use('/api/region-requests', regionRequestsRouter);
 app.use('/api/location', locationRouter);
 app.use('/api/rss-validation', rssValidationRouter);
 app.use('/api/messages', messagesRouter);
+
+// ML Classification API
+app.post('/api/ml/classify', async (req, res) => {
+  try {
+    const { newsItems, regionId, regionName } = req.body;
+    
+    if (!newsItems || !Array.isArray(newsItems)) {
+      return res.status(400).json({ error: 'newsItems array is required' });
+    }
+    
+    const results = await classifyWithML(newsItems, regionId, regionName);
+    
+    res.json({
+      success: true,
+      results: results,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('ML Classification API error:', error);
+    res.status(500).json({ error: 'Classification failed' });
+  }
+});
+
+// ML Feedback API
+app.post('/api/ml/feedback', async (req, res) => {
+  try {
+    const { text, correctCategory, predictedCategory, confidence } = req.body;
+    
+    if (!text || !correctCategory || !predictedCategory) {
+      return res.status(400).json({ error: 'text, correctCategory, and predictedCategory are required' });
+    }
+    
+    await submitFeedbackToML(text, correctCategory, predictedCategory, confidence);
+    
+    res.json({
+      success: true,
+      message: 'Feedback submitted successfully',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('ML Feedback API error:', error);
+    res.status(500).json({ error: 'Feedback submission failed' });
+  }
+});
+
+// ML Stats API
+app.get('/api/ml/stats', async (req, res) => {
+  try {
+    const isMLServerAvailable = await checkMLServerHealth();
+    
+    if (!isMLServerAvailable) {
+      return res.json({
+        success: true,
+        ml_server_available: false,
+        message: 'ML Server not available',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const response = await fetch(`${ML_CLASSIFICATION_CONFIG.pythonServerUrl}/stats`);
+    const stats = await response.json();
+    
+    res.json({
+      success: true,
+      ml_server_available: true,
+      stats: stats.stats,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('ML Stats API error:', error);
+    res.status(500).json({ error: 'Failed to get ML stats' });
+  }
+});
 
 // ---- Real-time Notifications (SSE) ----
 // SSE endpoint for real-time notifications

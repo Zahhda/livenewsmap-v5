@@ -133,32 +133,69 @@ function cleanupAIIndicators() {
   aiIndicatorActive = false;
 }
 
-// AI News Classification System
+// Initialize AI classification button
+function initAIClassificationButton() {
+  const aiBtn = document.getElementById('aiClassificationBtn');
+  if (aiBtn) {
+    aiBtn.addEventListener('click', async () => {
+      console.log('🧠 AI Classification button clicked');
+      await classifyAllNewsOnClick();
+    });
+    
+    // Add hover effects
+    aiBtn.addEventListener('mouseenter', () => {
+      aiBtn.style.transform = 'scale(1.05)';
+      aiBtn.style.boxShadow = '0 6px 25px rgba(255, 107, 53, 0.4)';
+    });
+    
+    aiBtn.addEventListener('mouseleave', () => {
+      aiBtn.style.transform = 'scale(1)';
+      aiBtn.style.boxShadow = '0 4px 20px rgba(255, 107, 53, 0.3)';
+    });
+    
+    console.log('🧠 AI Classification button initialized');
+  }
+}
+
+// AI News Classification System - Best Multilingual Models
 const AI_CLASSIFICATION_CONFIG = {
-  // Using free Hugging Face Inference API with zero-shot classification
-  apiUrl: 'https://api-inference.huggingface.co/models/facebook/bart-large-mnli',
-  // Fallback to a more reliable model
-  fallbackApiUrl: 'https://api-inference.huggingface.co/models/typeform/distilbert-base-uncased-mnli',
-  // High-accuracy news categories with related terms for better classification
+  // Primary: XLM-RoBERTa - Best multilingual model (100+ languages)
+  apiUrl: 'https://api-inference.huggingface.co/models/xlm-roberta-large-xnli',
+  // Fallback: mBERT - Multilingual BERT (104 languages)
+  fallbackApiUrl: 'https://api-inference.huggingface.co/models/facebook/mbart-large-50-many-to-many-mmt',
+  // Alternative: Multilingual DistilBERT for speed
+  speedApiUrl: 'https://api-inference.huggingface.co/models/facebook/mbart-large-50-many-to-many-mmt',
+  
+  // Optimized categories for multilingual classification
   categories: [
-    'war conflict military violence attack terrorism battle fight combat army navy air force defense security crisis emergency',
-    'climate environment weather global warming pollution disaster natural disaster flood drought hurricane tornado earthquake wildfire',
-    'culture arts entertainment sports music film literature theater dance festival concert movie show game tournament',
-    'society politics economy business technology health education social community government policy law crime justice',
-    'others miscellaneous general news information update announcement'
+    'war conflict military violence attack terrorism battle fight combat army navy air force defense security crisis emergency guerra conflicto militar violencia ataque terrorismo batalla lucha combate ejército marina fuerza aérea defensa seguridad crisis emergencia',
+    'climate environment weather global warming pollution disaster natural disaster flood drought hurricane tornado earthquake wildfire clima medio ambiente tiempo calentamiento global contaminación desastre desastre natural inundación sequía huracán tornado terremoto incendio forestal',
+    'culture arts entertainment sports music film literature theater dance festival concert movie show game tournament cultura arte entretenimiento deportes música cine literatura teatro danza festival concierto película espectáculo juego torneo',
+    'society politics economy business technology health education social community government policy law crime justice sociedad política economía negocios tecnología salud educación social comunidad gobierno política ley crimen justicia',
+    'others miscellaneous general news information update announcement otros misceláneo general noticias información actualización anuncio'
   ],
+  
   // Category mapping to our existing icons
   categoryMapping: {
-    'war conflict military violence attack terrorism battle fight combat army navy air force defense security crisis emergency': 'war',
-    'climate environment weather global warming pollution disaster natural disaster flood drought hurricane tornado earthquake wildfire': 'climate',
-    'culture arts entertainment sports music film literature theater dance festival concert movie show game tournament': 'culture',
-    'society politics economy business technology health education social community government policy law crime justice': 'society',
-    'others miscellaneous general news information update announcement': 'others'
+    'war conflict military violence attack terrorism battle fight combat army navy air force defense security crisis emergency guerra conflicto militar violencia ataque terrorismo batalla lucha combate ejército marina fuerza aérea defensa seguridad crisis emergencia': 'war',
+    'climate environment weather global warming pollution disaster natural disaster flood drought hurricane tornado earthquake wildfire clima medio ambiente tiempo calentamiento global contaminación desastre desastre natural inundación sequía huracán tornado terremoto incendio forestal': 'climate',
+    'culture arts entertainment sports music film literature theater dance festival concert movie show game tournament cultura arte entretenimiento deportes música cine literatura teatro danza festival concierto película espectáculo juego torneo': 'culture',
+    'society politics economy business technology health education social community government policy law crime justice sociedad política economía negocios tecnología salud educación social comunidad gobierno política ley crimen justicia': 'society',
+    'others miscellaneous general news information update announcement otros misceláneo general noticias información actualización anuncio': 'others'
   },
-  // Multi-language support
-  supportedLanguages: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko', 'ar', 'hi'],
-  // Minimum confidence threshold for 90%+ accuracy
-  minConfidence: 0.7
+  
+  // Supported languages (100+ languages supported by XLM-RoBERTa)
+  supportedLanguages: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko', 'ar', 'hi', 'nl', 'sv', 'da', 'no', 'fi', 'pl', 'cs', 'sk', 'hu', 'ro', 'bg', 'hr', 'sl', 'et', 'lv', 'lt', 'el', 'tr', 'he', 'th', 'vi', 'id', 'ms', 'tl', 'sw', 'am', 'yo', 'ig', 'ha', 'zu', 'xh', 'af', 'sq', 'az', 'eu', 'be', 'bn', 'bs', 'ca', 'cy', 'eo', 'fa', 'ga', 'gl', 'gu', 'is', 'ka', 'kk', 'km', 'kn', 'ky', 'lo', 'mk', 'ml', 'mn', 'mr', 'my', 'ne', 'pa', 'si', 'ta', 'te', 'uk', 'ur', 'uz', 'vi', 'zh-cn', 'zh-tw'],
+  
+  // Higher confidence threshold for better accuracy
+  minConfidence: 0.8,
+  
+  // Batch processing for better accuracy
+  batchSize: 10,
+  
+  // Classification state
+  isClassifying: false,
+  classificationQueue: []
 };
 
 // AI Classification function
@@ -378,41 +415,181 @@ async function processNewsWithAI(newsItems) {
   // Show AI processing indicator (desktop only)
   showAIProcessingIndicator();
   
-  const processedItems = [];
-  
-  for (const item of newsItems) {
-    try {
-      // Get AI classification
-      const aiCategory = await classifyNewsWithAI(item);
-      
-      // Update the news item with AI classification
-      const processedItem = {
-        ...item,
-        category: aiCategory,
-        aiClassified: true,
-        originalCategory: item.category || 'unknown'
-      };
-      
-      processedItems.push(processedItem);
-      
-      // No delay for instant processing
-      
-    } catch (error) {
-      console.error('Error processing news item:', error);
-      // Add original item with fallback category
-      processedItems.push({
-        ...item,
-        category: getFallbackCategory(item),
-        aiClassified: false
-      });
-    }
-  }
+  // Process all items in parallel for instant loading
+  const processedItems = await Promise.allSettled(
+    newsItems.map(async (item) => {
+      try {
+        // Get AI classification
+        const aiCategory = await classifyNewsWithAI(item);
+        
+        // Update the news item with AI classification
+        return {
+          ...item,
+          category: aiCategory,
+          aiClassified: true,
+          originalCategory: item.category || 'unknown'
+        };
+      } catch (error) {
+        console.error('Error processing news item:', error);
+        // Add original item with fallback category
+        return {
+          ...item,
+          category: getFallbackCategory(item),
+          aiClassified: false
+        };
+      }
+    })
+  ).then(results => 
+    results.map(result => result.status === 'fulfilled' ? result.value : {
+      ...newsItems[0],
+      category: 'others',
+      aiClassified: false
+    })
+  );
   
   // Hide AI processing indicator
   hideAIProcessingIndicator();
   
   console.log(`✅ AI processing complete: ${processedItems.length} items processed`);
   return processedItems;
+}
+
+// Click-based AI classification for all news at once
+async function classifyAllNewsOnClick() {
+  if (AI_CLASSIFICATION_CONFIG.isClassifying) {
+    console.log('🧠 AI classification already in progress...');
+    return;
+  }
+  
+  const isMobileScreen = window.innerWidth <= 768;
+  if (isMobileScreen) {
+    console.log('📱 Mobile detected - AI classification not available');
+    return;
+  }
+  
+  AI_CLASSIFICATION_CONFIG.isClassifying = true;
+  console.log('🧠 Starting AI classification for all news items...');
+  
+  // Show AI processing indicator
+  showAIProcessingIndicator();
+  
+  try {
+    // Get all current news items
+    const allNewsItems = newsListCache || [];
+    if (allNewsItems.length === 0) {
+      console.log('⚠️ No news items to classify');
+      return;
+    }
+    
+    // Process all news items with batch classification for better accuracy
+    const processedItems = await classifyNewsBatch(allNewsItems);
+    
+    // Update news list cache with AI-classified items
+    newsListCache = processedItems;
+    
+    // Re-render news list with AI classifications
+    const list = document.getElementById('newsList');
+    if (list) {
+      renderNewsList(newsListCache);
+    }
+    
+    // Update map markers with new classifications
+    await updateMapMarkersWithAI();
+    
+    // Show success message
+    showToast(`AI classified ${processedItems.length} news items in ${AI_CLASSIFICATION_CONFIG.supportedLanguages.length}+ languages`, 'success');
+    
+    console.log(`✅ AI classification complete: ${processedItems.length} items processed`);
+    
+  } catch (error) {
+    console.error('❌ AI classification failed:', error);
+    showToast('AI classification failed. Please try again.', 'error');
+  } finally {
+    AI_CLASSIFICATION_CONFIG.isClassifying = false;
+    hideAIProcessingIndicator();
+  }
+}
+
+// Batch classification for better accuracy
+async function classifyNewsBatch(newsItems) {
+  const batchSize = AI_CLASSIFICATION_CONFIG.batchSize;
+  const processedItems = [];
+  
+  // Process in batches for better accuracy and rate limiting
+  for (let i = 0; i < newsItems.length; i += batchSize) {
+    const batch = newsItems.slice(i, i + batchSize);
+    console.log(`🧠 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(newsItems.length/batchSize)}`);
+    
+    const batchPromises = batch.map(async (item) => {
+      try {
+        const aiCategory = await classifyNewsWithAI(item);
+        return {
+          ...item,
+          category: aiCategory,
+          aiClassified: true,
+          originalCategory: item.category || 'unknown'
+        };
+      } catch (error) {
+        console.error('Error processing news item:', error);
+        return {
+          ...item,
+          category: getFallbackCategory(item),
+          aiClassified: false
+        };
+      }
+    });
+    
+    const batchResults = await Promise.allSettled(batchPromises);
+    const batchProcessed = batchResults.map(result => 
+      result.status === 'fulfilled' ? result.value : {
+        ...newsItems[0],
+        category: 'others',
+        aiClassified: false
+      }
+    );
+    
+    processedItems.push(...batchProcessed);
+    
+    // Small delay between batches to respect rate limits
+    if (i + batchSize < newsItems.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  
+  return processedItems;
+}
+
+// Update map markers with AI classifications
+async function updateMapMarkersWithAI() {
+  if (!newsListCache || newsListCache.length === 0) return;
+  
+  // Find the most common category from AI-classified news
+  const categoryCounts = {};
+  newsListCache.forEach(item => {
+    categoryCounts[item.category] = (categoryCounts[item.category] || 0) + 1;
+  });
+  
+  const mostCommonCategory = Object.keys(categoryCounts).reduce((a, b) => 
+    categoryCounts[a] > categoryCounts[b] ? a : b
+  );
+  
+  // Update dominant badge
+  document.getElementById('dominantBadge').textContent = ` ${mostCommonCategory}`;
+  updateSignalBar(severityFromCategory(mostCommonCategory));
+  
+  console.log(`🗺️ Updated map markers with AI classification: ${mostCommonCategory}`);
+}
+
+// Update specific map marker for a region
+function updateMapMarkerForRegion(regionId, category) {
+  const marker = markers.get(regionId);
+  if (marker) {
+    const iconUrl = makeIcon(category);
+    const el = marker.getElement();
+    el.style.backgroundImage = `url('${iconUrl}')`;
+    el.title = `${regions.find(r => r._id === regionId)?.name} • ${category}`;
+    console.log(`🗺️ Updated map marker for region ${regionId}: ${category}`);
+  }
 }
 
 // Show sophisticated AI processing indicator (desktop only)
@@ -436,12 +613,19 @@ function showAIProcessingIndicator() {
   aiIndicatorActive = true;
   console.log('🧠 Setting aiIndicatorActive to true');
   
-  // Show earth scanning icon only on desktop
-  const desktopIcon = document.getElementById('neuralNetworkIcon');
+  // Show AI classification button processing state
+  const aiBtn = document.getElementById('aiClassificationBtn');
   
-  if (!isMobileScreen && desktopIcon) {
-    desktopIcon.classList.add('processing');
-    console.log('🧠 Showing desktop AI icon');
+  if (!isMobileScreen && aiBtn) {
+    aiBtn.style.opacity = '0.7';
+    aiBtn.style.pointerEvents = 'none';
+    aiBtn.innerHTML = `
+      <svg class="refresh-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12a9 9 0 11-6.219-8.56"/>
+      </svg>
+      <span>Classifying...</span>
+    `;
+    console.log('🧠 Showing AI classification processing state');
   }
   
   const indicator = document.createElement('div');
@@ -738,12 +922,20 @@ function hideAIProcessingIndicator() {
   aiIndicatorActive = false;
   console.log('🧠 Setting aiIndicatorActive to false');
   
-  // Hide earth scanning icon only on desktop
-  const desktopIcon = document.getElementById('neuralNetworkIcon');
+  // Hide AI classification button processing state
+  const aiBtn = document.getElementById('aiClassificationBtn');
   
-  if (desktopIcon) {
-    desktopIcon.classList.remove('processing');
-    console.log('🧠 Hiding desktop AI icon');
+  if (aiBtn) {
+    aiBtn.style.opacity = '1';
+    aiBtn.style.pointerEvents = 'auto';
+    aiBtn.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 12l2 2 4-4"/>
+        <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c1.5 0 2.9.37 4.13 1.02"/>
+      </svg>
+      <span>AI Classify</span>
+    `;
+    console.log('🧠 Hiding AI classification processing state');
   }
   
   // Remove all AI processing indicators (in case there are multiple)
@@ -905,13 +1097,24 @@ async function refreshData(buttonId = 'refreshBtn') {
   // Show success toast
   showToast('Refresh completed successfully', 'success');
   
-  // Wait for background operations to complete, then reset button
-  Promise.allSettled(refreshPromises).then(() => {
-    console.log('Background refresh operations completed');
-    // Reset button immediately after background operations finish
+  // Reset button immediately for instant feedback
+  setTimeout(() => {
     refreshBtn.classList.remove('refresh-success', 'refresh-pulsing');
     refreshBtn.innerHTML = originalText;
     refreshBtn.disabled = false;
+  }, 1000);
+  
+  // Background operations continue without blocking UI
+  Promise.allSettled(refreshPromises).then(() => {
+    console.log('Background refresh operations completed');
+    
+    // Trigger AI classification after refresh completes
+    if (newsListCache && newsListCache.length > 0) {
+      console.log('🧠 Triggering AI classification after refresh...');
+      classifyAllNewsOnClick().catch(error => {
+        console.error('AI classification after refresh failed:', error);
+      });
+    }
   });
 }
 
@@ -929,9 +1132,12 @@ async function refreshNewsData() {
       if (res.ok) {
         const data = await res.json();
         if (data.items && data.items.length > 0) {
-          // Process news with AI classification
-          console.log('🧠 Starting AI classification for news items...');
+          // Process news with AI classification automatically
+          console.log('🧠 Starting automatic AI classification for news items...');
           const aiProcessedItems = await processNewsWithAI(data.items);
+          
+          // Update news list cache with AI-classified items
+          newsListCache = aiProcessedItems;
           
           // Update news list with AI-classified items
           renderNewsList(aiProcessedItems);
@@ -940,6 +1146,17 @@ async function refreshNewsData() {
           const newsCountEl = document.getElementById('newsCount');
           if (newsCountEl) {
             newsCountEl.textContent = data.count || data.items.length;
+          }
+          
+          // Update map marker with AI classification
+          const currentRegion = regions.find(r => r._id === selectedRegion);
+          if (currentRegion) {
+            const firstNewsCategory = aiProcessedItems[0]?.category || 'others';
+            updateMapMarkerForRegion(selectedRegion, firstNewsCategory);
+            
+            // Update dominant badge
+            document.getElementById('dominantBadge').textContent = ` ${firstNewsCategory}`;
+            updateSignalBar(severityFromCategory(firstNewsCategory));
           }
           
           // Show AI classification summary
@@ -3048,65 +3265,66 @@ async function getRegionPayload(regionId, force=false){
   return res;
 }
 async function renderAllRegionMarkers(force=false){
-  // Render markers in batches for better performance
-  const batchSize = 10;
-  const batches = [];
-  
-  for (let i = 0; i < regions.length; i += batchSize) {
-    batches.push(regions.slice(i, i + batchSize));
-  }
-  
-  for (const batch of batches) {
-    const batchPromises = batch.map(async (region) => {
-      try {
-        const payload = await getRegionPayload(region._id, force);
-        const cat = latestCategory(payload.items);
-        const iconUrl = makeIcon(cat);
-        let marker = markers.get(region._id);
-        
-        if (!marker) {
-          // Create Mapbox marker
-          const el = document.createElement('div');
-          el.className = 'mapbox-marker';
-          el.style.cssText = `
-            width: ${ICON_PX}px;
-            height: ${ICON_PX}px;
-            background-image: url('${iconUrl}');
-            background-size: contain;
-            background-repeat: no-repeat;
-            cursor: pointer;
-            border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-          `;
+  // Render all markers in parallel for instant loading
+  const markerPromises = regions.map(async (region) => {
+    try {
+      const payload = await getRegionPayload(region._id, force);
+      
+      // Process news with AI classification to get accurate category
+      const newsItems = payload.items || [];
+      let dominantCategory = latestCategory(payload.items);
+      
+        if (newsItems.length > 0) {
+          // Use AI classification for more accurate map markers
+          const aiProcessedItems = await processNewsWithAI(newsItems);
           
-          marker = new mapboxgl.Marker(el)
-            .setLngLat([region.lng, region.lat])
-            .addTo(map);
-          
-          // Add click event
-          el.addEventListener('click', () => {
-            selectCountry(region.country);
-            selectRegionFromCustom(region._id);
-          });
-          
-          markers.set(region._id, marker);
-        } else {
-          // Update existing marker icon
-          const el = marker.getElement();
-          el.style.backgroundImage = `url('${iconUrl}')`;
-          el.title = `${region.name} • ${cat}`;
+          // Use the category of the first/top news item (same as sidebar)
+          dominantCategory = aiProcessedItems[0]?.category || latestCategory(payload.items);
+          console.log(`🗺️ Map marker for ${region.name}: ${dominantCategory} (AI-classified, matches top news item)`);
         }
-      } catch (e) {
-        console.warn('Marker render failed for region', region._id, e);
+      
+      const iconUrl = makeIcon(dominantCategory);
+      let marker = markers.get(region._id);
+      
+      if (!marker) {
+        // Create Mapbox marker
+        const el = document.createElement('div');
+        el.className = 'mapbox-marker';
+        el.style.cssText = `
+          width: ${ICON_PX}px;
+          height: ${ICON_PX}px;
+          background-image: url('${iconUrl}');
+          background-size: contain;
+          background-repeat: no-repeat;
+          cursor: pointer;
+          border-radius: 50%;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        `;
+        
+        marker = new mapboxgl.Marker(el)
+          .setLngLat([region.lng, region.lat])
+          .addTo(map);
+        
+        // Add click event
+        el.addEventListener('click', () => {
+          selectCountry(region.country);
+          selectRegionFromCustom(region._id);
+        });
+        
+        markers.set(region._id, marker);
+      } else {
+        // Update existing marker icon
+        const el = marker.getElement();
+        el.style.backgroundImage = `url('${iconUrl}')`;
+        el.title = `${region.name} • ${dominantCategory}`;
       }
-    });
-    
-    // Wait for batch to complete before next batch
-    await Promise.allSettled(batchPromises);
-    
-    // Small delay between batches to prevent UI blocking
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
+    } catch (e) {
+      console.warn('Marker render failed for region', region._id, e);
+    }
+  });
+  
+  // Wait for all markers to complete in parallel
+  await Promise.allSettled(markerPromises);
 }
 async function selectRegion(regionId, force=false){
   currentRegionId = regionId;
@@ -3595,8 +3813,11 @@ function newsRow(it) {
   const displayTitle = it.translatedTitle || it.title;
   const displaySummary = it.translatedSummary || it.summary;
   
+  const iconSrc = ICONS[it.category] || ICONS.others;
+  console.log(`📰 News item "${it.title.substring(0, 30)}..." category: ${it.category}, icon: ${iconSrc}`);
+  
   li.innerHTML = `
-    <img class="icon" src="${ICONS[it.category] || ICONS.others}" alt="${it.category}" />
+    <img class="icon" src="${iconSrc}" alt="${it.category}" />
     <div>
       <div class="title" style="font-weight:600;line-height:1.3" data-original="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</div>
       <div class="small" style="color:var(--muted)" data-original="${escapeHtml(it.source || '')} • ${it.isoDate ? new Date(it.isoDate).toLocaleString() : ''}">${escapeHtml(it.source || '')} • ${it.isoDate ? new Date(it.isoDate).toLocaleString() : ''}</div>
@@ -3700,33 +3921,54 @@ async function saveReadLater(it) {
 
 // ---------- existing region renderer (now uses new list/detail) ----------
 async function renderRegion(region, payload, latestCat){
-  const computed = latestCat || latestCategory(payload.items);
-  document.getElementById('dominantBadge').textContent = ` ${computed}`;
-
+  // Show news immediately with original categories first
+  const newsItems = payload.items || [];
+  let dominantCategory = latestCat || latestCategory(payload.items);
+  
+  // Update UI immediately with original category
+  document.getElementById('dominantBadge').textContent = ` ${dominantCategory}`;
   ensureSignalStyles();
   ensureSignalBar();
-  updateSignalBar(severityFromCategory(computed));
+  updateSignalBar(severityFromCategory(dominantCategory));
   ensureDetailStyles();
-
-  // Process news with AI classification
-  const newsItems = payload.items || [];
-  if (newsItems.length > 0) {
-    console.log('🧠 Starting AI classification for region news...');
-    const aiProcessedItems = await processNewsWithAI(newsItems);
-    
-    // Update news list cache with AI-classified items
-    newsListCache = aiProcessedItems;
-    
-    // Show AI classification summary
-    const aiClassifiedCount = aiProcessedItems.filter(item => item.aiClassified).length;
-    console.log(`🧠 AI Classification Summary: ${aiClassifiedCount}/${aiProcessedItems.length} items classified by AI`);
-  } else {
+  
+  // Show news immediately
+  const list = document.getElementById('newsList');
+  if (list) {
     newsListCache = newsItems;
+    renderNewsList(newsListCache);
   }
   
-  const list = document.getElementById('newsList');
-  if (!list) return;
-  renderNewsList(newsListCache);
+  // Process AI classification automatically in background and update when ready
+  if (newsItems.length > 0) {
+    console.log('🧠 Starting automatic AI classification for region news...');
+    
+    // Process AI classification in background
+    processNewsWithAI(newsItems).then(aiProcessedItems => {
+      // Update news list cache with AI-classified items
+      newsListCache = aiProcessedItems;
+      
+      // Use the category of the first/top news item (same as sidebar)
+      const newDominantCategory = aiProcessedItems[0]?.category || latestCategory(payload.items);
+      
+      // Update UI with AI-classified category
+      document.getElementById('dominantBadge').textContent = ` ${newDominantCategory}`;
+      updateSignalBar(severityFromCategory(newDominantCategory));
+      
+      // Re-render news list with AI classifications
+      if (list) {
+        renderNewsList(newsListCache);
+      }
+      
+      // Update map marker with AI classification
+      updateMapMarkerForRegion(region._id, newDominantCategory);
+      
+      // Show AI classification summary
+      const aiClassifiedCount = aiProcessedItems.filter(item => item.aiClassified).length;
+      console.log(`🧠 AI Classification Summary: ${aiClassifiedCount}/${aiProcessedItems.length} items classified by AI`);
+      console.log(`🗺️ Map marker updated with category: ${newDominantCategory} (matches top news item)`);
+    });
+  }
 }
 
 // ---------- utils ----------
@@ -3751,6 +3993,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   // Cleanup any existing AI indicators on page load
   cleanupAIIndicators();
   console.log('🚀 DOM Content Loaded - Starting app initialization');
+  
+  // Initialize AI classification button
+  initAIClassificationButton();
   
   // Immediately enforce authentication - block everything
   enforceAuthentication();

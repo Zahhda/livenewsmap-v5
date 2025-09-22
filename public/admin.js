@@ -548,13 +548,21 @@ async function renderRegionsOverview(regions) {
 async function renderRegionsOverviewWithProgress(regions) {
   const content = document.getElementById("regionsOverviewContent");
   
-  // Validate all regions' RSS feeds with progress updates
+  // Show initial progress
+  content.innerHTML = `
+    <div style="color:#ff6b35; font-style:italic; display:flex; align-items:center; gap:8px;">
+      <div class="regions-spinner"></div>
+      Validating regions... 0% (0/${regions.length})
+    </div>
+  `;
+  
+  // Validate all regions' RSS feeds in parallel with progress updates
   const validationPromises = regions.map(async (region, index) => {
     const feeds = region.feeds || [];
     if (feeds.length === 0) {
       return {
         region,
-        status: 'unknown',
+        status: 'no-feeds',
         validFeeds: 0,
         invalidFeeds: 0,
         totalFeeds: 0,
@@ -566,8 +574,8 @@ async function renderRegionsOverviewWithProgress(regions) {
     let invalidFeeds = 0;
     const errors = [];
     
-    // Validate each feed in the region
-    for (const feed of feeds) {
+    // Validate all feeds in parallel for this region
+    const feedValidationPromises = feeds.map(async (feed) => {
       try {
         const response = await fetch('/api/rss-validation/validate', {
           method: 'POST',
@@ -575,34 +583,42 @@ async function renderRegionsOverviewWithProgress(regions) {
           body: JSON.stringify({ url: feed.url })
         });
         
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
         const validation = await response.json();
         if (validation.isValid) {
           validFeeds++;
+          return { url: feed.url, valid: true, error: null };
         } else {
           invalidFeeds++;
-          errors.push(`${feed.url}: ${validation.error}`);
+          const error = validation.error || 'Invalid RSS feed';
+          errors.push(`${feed.url}: ${error}`);
+          return { url: feed.url, valid: false, error };
         }
       } catch (error) {
         invalidFeeds++;
-        errors.push(`${feed.url}: Validation failed`);
+        const errorMsg = `Validation failed: ${error.message || error}`;
+        errors.push(`${feed.url}: ${errorMsg}`);
+        return { url: feed.url, valid: false, error: errorMsg };
       }
-    }
+    });
     
+    // Wait for all feeds in this region to be validated
+    await Promise.all(feedValidationPromises);
+    
+    // Determine status based on validation results
     let status = 'unknown';
     if (validFeeds > 0 && invalidFeeds === 0) {
       status = 'valid';
+    } else if (validFeeds > 0 && invalidFeeds > 0) {
+      status = 'partial';
     } else if (invalidFeeds > 0) {
       status = 'invalid';
+    } else {
+      status = 'unknown';
     }
-    
-    // Update progress
-    const progress = Math.round(((index + 1) / regions.length) * 100);
-    content.innerHTML = `
-      <div style="color:#ff6b35; font-style:italic; display:flex; align-items:center; gap:8px;">
-        <div class="regions-spinner"></div>
-        Validating regions... ${progress}% (${index + 1}/${regions.length})
-      </div>
-    `;
     
     return {
       region,
@@ -614,26 +630,71 @@ async function renderRegionsOverviewWithProgress(regions) {
     };
   });
   
-  const results = await Promise.all(validationPromises);
+  // Track progress as validations complete
+  let completedCount = 0;
+  const results = [];
   
-  // Render overview items
+  // Process results as they complete
+  for (let i = 0; i < validationPromises.length; i++) {
+    try {
+      const result = await validationPromises[i];
+      results[i] = result;
+      completedCount++;
+      
+      // Update progress
+      const progress = Math.round((completedCount / regions.length) * 100);
+      content.innerHTML = `
+        <div style="color:#ff6b35; font-style:italic; display:flex; align-items:center; gap:8px;">
+          <div class="regions-spinner"></div>
+          Validating regions... ${progress}% (${completedCount}/${regions.length})
+        </div>
+      `;
+    } catch (error) {
+      console.error(`Validation failed for region ${i}:`, error);
+      results[i] = {
+        region: regions[i],
+        status: 'error',
+        validFeeds: 0,
+        invalidFeeds: 0,
+        totalFeeds: 0,
+        errors: [`Validation failed: ${error.message}`]
+      };
+      completedCount++;
+    }
+  }
+  
+  // Render overview items with accurate status
   content.innerHTML = results.map(result => {
     const { region, status, validFeeds, invalidFeeds, totalFeeds, errors } = result;
     
     let statusText = '';
+    let statusClass = status;
+    
     if (status === 'valid') {
       statusText = `✓ ${validFeeds}/${totalFeeds} feeds valid`;
+      statusClass = 'valid';
+    } else if (status === 'partial') {
+      statusText = `⚠ ${validFeeds}/${totalFeeds} feeds valid (${invalidFeeds} invalid)`;
+      statusClass = 'partial';
     } else if (status === 'invalid') {
       statusText = `✗ ${invalidFeeds}/${totalFeeds} feeds invalid`;
+      statusClass = 'invalid';
+    } else if (status === 'no-feeds') {
+      statusText = `? No RSS feeds configured`;
+      statusClass = 'no-feeds';
+    } else if (status === 'error') {
+      statusText = `❌ Validation error`;
+      statusClass = 'error';
     } else {
       statusText = `? ${totalFeeds} feeds (not validated)`;
+      statusClass = 'unknown';
     }
     
     return `
-      <div class="region-status-item ${status}" 
+      <div class="region-status-item ${statusClass}" 
            title="${errors.length > 0 ? errors.join('\n') : 'All feeds valid'}"
            onclick="fillForm(${JSON.stringify(region).replace(/"/g, '&quot;')})">
-        <div class="region-status-indicator ${status}"></div>
+        <div class="region-status-indicator ${statusClass}"></div>
         <div class="region-name">${region.name}</div>
         <div class="region-stats">${statusText}</div>
       </div>
@@ -687,9 +748,23 @@ function renderRegionsList(regions) {
       rssStatus = 'No feeds';
       rssStatusClass = 'rss-unknown';
     } else {
-      // This is a simplified status - in a real implementation, you'd want to check actual validation
-      rssStatus = `${feeds.length} feed${feeds.length > 1 ? 's' : ''}`;
-      rssStatusClass = 'rss-info';
+      // Check if feeds have been validated
+      const validatedFeeds = feeds.filter(feed => feed.validationState === 'valid').length;
+      const invalidFeeds = feeds.filter(feed => feed.validationState === 'invalid').length;
+      
+      if (validatedFeeds > 0 && invalidFeeds === 0) {
+        rssStatus = `✓ ${validatedFeeds}/${feeds.length} valid`;
+        rssStatusClass = 'rss-valid';
+      } else if (validatedFeeds > 0 && invalidFeeds > 0) {
+        rssStatus = `⚠ ${validatedFeeds}/${feeds.length} valid (${invalidFeeds} invalid)`;
+        rssStatusClass = 'rss-partial';
+      } else if (invalidFeeds > 0) {
+        rssStatus = `✗ ${invalidFeeds}/${feeds.length} invalid`;
+        rssStatusClass = 'rss-invalid';
+      } else {
+        rssStatus = `${feeds.length} feed${feeds.length > 1 ? 's' : ''} (not validated)`;
+        rssStatusClass = 'rss-info';
+      }
     }
     
     row.innerHTML = `
