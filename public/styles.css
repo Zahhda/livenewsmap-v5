@@ -181,6 +181,11 @@ button.primary:hover {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 8px;
+  border-left: none !important; /* Prevent any unwanted red borders */
+  border-right: none !important; /* Prevent any unwanted red borders */
+  border-top: none !important; /* Prevent any unwanted red borders */
+  outline: none !important; /* Prevent any unwanted red outlines */
+  box-shadow: none !important; /* Prevent any unwanted red shadows */
 }
 
 .news-item img.icon {
@@ -381,8 +386,8 @@ button.primary:hover {
 
 .mobile-nav-btn:hover {
   color: #fff;
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transform: none; /* Remove transform on mobile to prevent shaking */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .mobile-nav-btn:hover::before {
@@ -393,9 +398,9 @@ button.primary:hover {
   color: #fff;
   background: linear-gradient(135deg, rgba(255, 77, 77, 0.2) 0%, rgba(255, 107, 107, 0.15) 100%);
   box-shadow: 
-    0 6px 20px rgba(255, 77, 77, 0.3),
+    0 3px 10px rgba(255, 77, 77, 0.2),
     0 0 0 1px rgba(255, 77, 77, 0.2) inset;
-  transform: translateY(-2px) scale(1.02);
+  transform: none; /* Remove transform on mobile to prevent shaking */
 }
 
 .mobile-nav-btn.active::after {
@@ -413,7 +418,7 @@ button.primary:hover {
 
 @keyframes pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 0.9; }
 }
 
 .mobile-nav-icon {
@@ -703,6 +708,54 @@ button.primary:hover {
 
 /* Tablet and Mobile (768px and below) */
 @media (max-width: 768px) {
+  /* Prevent excessive animations and shaking on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Allow text selection for input fields and content areas */
+  input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+  
+  /* Reduce motion for better mobile experience */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  
+  /* Prevent zooming and improve touch behavior */
+  body {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+  
+  /* Reduce transform animations on mobile */
+  .mobile-nav-btn:hover,
+  .mobile-nav-btn:active,
+  .mobile-nav-btn.active {
+    transform: none !important;
+  }
+  
+  /* Smooth but minimal transitions */
+  .mobile-nav-btn {
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  }
+  
   /* Show mobile bottom navigation */
   .mobile-bottom-nav {
     display: flex;
@@ -743,13 +796,22 @@ button.primary:hover {
     align-items: stretch;
   }
   
-  /* First row: Logo, Category, Signal */
+  /* First row: Logo, Signal, Category */
   .topbar #topbar-left {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
     margin-bottom: 12px;
+  }
+  
+  /* Reorder elements for mobile: Logo, Signal, Category */
+  .topbar #topbar-left .signalbar {
+    order: 2; /* Signal bar second */
+  }
+  
+  .topbar #topbar-left .token-badge {
+    order: 3; /* Category capsule third */
   }
   
   /* Logo section */
@@ -761,6 +823,7 @@ button.primary:hover {
     color: inherit;
     font-weight: 700;
     height: 28px;
+    order: 1; /* Logo first */
   }
   
   .topbar #topbar-left > a img {
@@ -843,10 +906,186 @@ button.primary:hover {
     box-sizing: border-box;
   }
   
+  /* Mobile refresh button - icon only */
+  .topbar-controls #mobileRefreshBtn {
+    padding: 8px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+  
+  .topbar-controls #mobileRefreshBtn:hover {
+    background: #1a1a1a;
+    border-color: #444;
+    transform: none; /* Remove transform on mobile to prevent shaking */
+  }
+  
+  .topbar-controls #mobileRefreshBtn .refresh-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+/* Spin animation for mobile refresh icon */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Earth Scanning Animation */
+.scan-ring {
+  position: absolute;
+  border: 2px solid rgba(0, 179, 126, 0.4);
+  border-radius: 50%;
+  animation: earth-scan 2s infinite;
+}
+
+.scan-ring-1 {
+  width: 60px;
+  height: 60px;
+  top: -5px;
+  left: -5px;
+  animation-delay: 0s;
+}
+
+.scan-ring-2 {
+  width: 80px;
+  height: 80px;
+  top: -15px;
+  left: -15px;
+  animation-delay: 0.5s;
+}
+
+.scan-ring-3 {
+  width: 100px;
+  height: 100px;
+  top: -25px;
+  left: -25px;
+  animation-delay: 1s;
+}
+
+@keyframes earth-scan {
+  0% {
+    transform: scale(0.8) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.5) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Earth Scanning Icon Hover Effects */
+.earth-scanning-icon:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(0, 179, 126, 0.4);
+}
+
+.earth-scanning-icon:active {
+  transform: scale(0.95);
+}
+
+/* Show earth scanning icons when AI is processing */
+.earth-scanning-icon.processing {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Hide earth scanning icons by default */
+.earth-scanning-icon {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.3s ease;
+}
+
+
+/* Mobile earth scanning icon positioning */
+@media (max-width: 768px) {
+  .earth-scanning-icon {
+    display: none;
+  }
+  
+  
+  /* Mobile AI popup - completely hidden on mobile */
+  #aiProcessingIndicator {
+    display: none !important;
+  }
+  
+  /* Mobile AI popup elements */
+  #aiProcessingIndicator .scanning-icon {
+    width: 32px !important;
+    height: 32px !important;
+    margin: 0 !important;
+    flex-shrink: 0 !important;
+  }
+  
+  #aiProcessingIndicator .scanning-icon svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  
+  #aiProcessingIndicator .text-content {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+  }
+  
+  #aiProcessingIndicator .title {
+    font-size: 12px !important;
+    margin: 0 !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  
+  #aiProcessingIndicator .processing-message {
+    font-size: 10px !important;
+    margin: 0 !important;
+    color: #ccc !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  
+  #aiProcessingIndicator .progress-container {
+    width: 60px !important;
+    height: 3px !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-radius: 2px !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .earth-scanning-icon {
+    display: flex;
+  }
+}
+  
   .topbar-controls #refreshBtn:hover {
     background: #1a1a1a;
     border-color: #444;
-    transform: translateY(-1px);
+    transform: none; /* Remove transform on mobile to prevent shaking */
   }
   
   .topbar-controls #refreshBtn .refresh-icon {
@@ -879,7 +1118,11 @@ button.primary:hover {
     font-size: 11px;
   }
   
-  /* Mobile marquee */
+  /* Mobile marquee - hide completely to prevent red box */
+  .news-marquee-container {
+    display: none !important;
+  }
+  
   .news-marquee-container::before {
     display: none;
   }
@@ -1018,6 +1261,14 @@ button.primary:hover {
     box-sizing: border-box;
   }
   
+  /* Mobile refresh button - icon only */
+  .topbar-controls #mobileRefreshBtn {
+    padding: 8px;
+    width: 36px;
+    height: 36px;
+    box-sizing: border-box;
+  }
+  
   .token-badge {
     font-size: 10px;
     padding: 2px 4px;
@@ -1048,7 +1299,11 @@ button.primary:hover {
     font-size: 10px;
   }
   
-  /* Mobile marquee */
+  /* Mobile marquee - hide completely to prevent red box */
+  .news-marquee-container {
+    display: none !important;
+  }
+  
   .news-marquee-container::before {
     display: none;
   }
@@ -1183,6 +1438,14 @@ button.primary:hover {
     box-sizing: border-box;
   }
   
+  /* Mobile refresh button - icon only */
+  .topbar-controls #mobileRefreshBtn {
+    padding: 8px;
+    width: 36px;
+    height: 36px;
+    box-sizing: border-box;
+  }
+  
   .token-badge {
     font-size: 9px;
     padding: 1px 3px;
@@ -1213,7 +1476,11 @@ button.primary:hover {
     font-size: 9px;
   }
   
-  /* Mobile marquee */
+  /* Mobile marquee - hide completely to prevent red box */
+  .news-marquee-container {
+    display: none !important;
+  }
+  
   .news-marquee-container::before {
     display: none;
   }
@@ -2369,8 +2636,8 @@ button.primary:hover {
 .saved-news-item:hover {
   background: #151515;
   border-color: #444;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: none; /* Remove transform to prevent shaking on mobile */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* Countdown Timer */
