@@ -22,6 +22,7 @@ import regionRequestsRouter from './src/routes/regionRequests.js';
 import locationRouter from './src/routes/location.js';
 import rssValidationRouter from './src/routes/rssValidation.js';
 import messagesRouter from './src/routes/messages.js';
+import userSearchRouter from './src/routes/userSearch.js';
 import { authRequired, adminRequired } from './src/middleware/auth.js';
 import { ensureSeedAdmin } from './src/utils/seedAdmin.js';
 
@@ -198,6 +199,8 @@ const io = new Server(server, {
   }
 });
 
+const userSocketMap = new Map();
+
 // Store the io instance in the app for use in routes
 app.set('io', io);
 
@@ -223,12 +226,37 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log(`User ${socket.userId} connected`);
   
+  userSocketMap.set(socket.userId, socket.id);
+  
   // Join user to their personal room
   socket.join(socket.userId);
+  
+  // Emit online users list
+  io.emit('getOnlineUsers', Array.from(userSocketMap.keys()));
+  
+  // Handle conversation joining
+  socket.on('joinConversation', (conversationId) => {
+    socket.join(`conversation_${conversationId}`);
+    console.log(`User ${socket.userId} joined conversation ${conversationId}`);
+  });
+  
+  // Handle conversation leaving
+  socket.on('leaveConversation', (conversationId) => {
+    socket.leave(`conversation_${conversationId}`);
+    console.log(`User ${socket.userId} left conversation ${conversationId}`);
+  });
   
   // Handle typing indicators
   socket.on('typing', (data) => {
     socket.to(data.recipientId).emit('userTyping', {
+      userId: socket.userId,
+      isTyping: data.isTyping
+    });
+  });
+  
+  // Handle typing in conversation
+  socket.on('conversationTyping', (data) => {
+    socket.to(`conversation_${data.conversationId}`).emit('userTyping', {
       userId: socket.userId,
       isTyping: data.isTyping
     });
@@ -301,8 +329,15 @@ io.on('connection', (socket) => {
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log(`User ${socket.userId} disconnected`);
+    userSocketMap.delete(socket.userId);
+    io.emit('getOnlineUsers', Array.from(userSocketMap.keys()));
   });
 });
+
+// Helper function to get receiver socket ID
+export const getReceiverSocketId = (receiverId) => {
+  return userSocketMap.get(receiverId);
+};
 
 // ---- Healthcheck (for platforms) ----
 app.get('/health', (_req, res) => res.status(200).send('ok'));
@@ -365,6 +400,7 @@ app.use('/api/region-requests', regionRequestsRouter);
 app.use('/api/location', locationRouter);
 app.use('/api/rss-validation', rssValidationRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/users', userSearchRouter);
 
 // ML Classification API
 app.post('/api/ml/classify', async (req, res) => {

@@ -44,6 +44,7 @@
 
 let map;
 let markers = new Map(); // regionId -> mapboxgl.Marker
+let regionHighlights = new Map(); // regionId -> highlight element
 let regions = [];
 let byCountry = {};
 let currentRegionId = null;
@@ -396,23 +397,15 @@ function getFallbackCategory(newsItem) {
   return categoryScores[bestCategory] > 0 ? bestCategory : 'others';
 }
 
-// Enhanced news processing with AI classification (desktop only)
+// Enhanced news processing with AI classification (desktop and mobile)
 async function processNewsWithAI(newsItems) {
   const isMobileScreen = window.innerWidth <= 768;
   
-  // Skip AI processing on mobile - return items instantly
-  if (isMobileScreen) {
-    console.log('📱 Mobile detected - skipping AI classification for instant news');
-    return newsItems.map(item => ({
-      ...item,
-      category: item.category || 'others',
-      aiClassified: false
-    }));
-  }
+  console.log('📱 Mobile detection for AI processing:', isMobileScreen, 'Screen width:', window.innerWidth);
   
   console.log('🧠 Processing news with AI classification...');
   
-  // Show AI processing indicator (desktop only)
+  // Show AI processing indicator (desktop and mobile)
   showAIProcessingIndicator();
   
   // Process all items in parallel for instant loading
@@ -454,7 +447,7 @@ async function processNewsWithAI(newsItems) {
   return processedItems;
 }
 
-// Click-based AI classification for all news at once
+// Click-based AI classification for all news at once (desktop and mobile)
 async function classifyAllNewsOnClick() {
   if (AI_CLASSIFICATION_CONFIG.isClassifying) {
     console.log('🧠 AI classification already in progress...');
@@ -462,10 +455,7 @@ async function classifyAllNewsOnClick() {
   }
   
   const isMobileScreen = window.innerWidth <= 768;
-  if (isMobileScreen) {
-    console.log('📱 Mobile detected - AI classification not available');
-    return;
-  }
+  console.log('📱 Mobile detection for AI classification click:', isMobileScreen, 'Screen width:', window.innerWidth);
   
   AI_CLASSIFICATION_CONFIG.isClassifying = true;
   console.log('🧠 Starting AI classification for all news items...');
@@ -592,14 +582,10 @@ function updateMapMarkerForRegion(regionId, category) {
   }
 }
 
-// Show sophisticated AI processing indicator (desktop only)
+// Show sophisticated AI processing indicator (desktop and mobile)
 function showAIProcessingIndicator() {
-  // Only show on desktop
   const isMobileScreen = window.innerWidth <= 768;
-  if (isMobileScreen) {
-    console.log('📱 Mobile detected - skipping AI indicator');
-    return;
-  }
+  console.log('📱 Mobile detection:', isMobileScreen, 'Screen width:', window.innerWidth);
   
   // Check if indicator is already active or exists in DOM
   const existingIndicator = document.getElementById('aiProcessingIndicator');
@@ -655,120 +641,28 @@ function showAIProcessingIndicator() {
   console.log('🧠 Creating AI indicator for region:', currentRegion);
   
   if (isMobile) {
-    // Mobile layout - thin one row design matching bottom menu width
+    // Mobile layout - simple content without nested divs
     indicator.innerHTML = `
-      <div style="
-        position: fixed;
-        top: auto;
-        bottom: 80px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: calc(100vw - 40px);
-        max-width: 400px;
-        background: linear-gradient(135deg, rgba(0, 0, 0, 0.98) 0%, rgba(30, 0, 0, 0.98) 100%);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 8px;
-        z-index: 10000;
-        text-align: left;
-        font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 77, 77, 0.5);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        height: 48px;
-      ">
-        <!-- Earth Scanning Icon -->
-        <div class="scanning-icon" style="
-          width: 32px;
-          height: 32px;
-          background: linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%);
-          border-radius: 50%;
-          margin: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          position: relative;
-          animation: pulse 2s infinite;
-          flex-shrink: 0;
-        ">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M2 12h20"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-          <!-- Scanning rings -->
-          <div style="
-            position: absolute;
-            top: -3px;
-            left: -3px;
-            right: -3px;
-            bottom: -3px;
-            border: 1px solid transparent;
-            border-top: 1px solid #ff4d4d;
-            border-radius: 50%;
-            animation: spin 1.5s linear infinite;
-          "></div>
-        </div>
-        
-        <!-- Text Content -->
-        <div class="text-content" style="
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          min-width: 0;
-        ">
-          <!-- Title -->
-          <div class="title" style="
-            font-size: 12px;
-            font-weight: 700;
-            margin: 0;
-            background: linear-gradient(135deg, #ff4d4d, #cc0000);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1.1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          ">
-            Classifying ${currentRegion}
-          </div>
-          
-          <!-- Processing Message -->
-          <div id="aiProcessingMessage" class="processing-message" style="
-            font-size: 10px;
-            color: #ccc;
-            margin: 0;
-            line-height: 1.2;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-          ">
-            Initializing scan...
-          </div>
-        </div>
-        
-        <!-- Progress Bar -->
-        <div class="progress-container" style="
-          width: 60px;
-          height: 3px;
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 2px;
-          overflow: hidden;
-          flex-shrink: 0;
-        ">
-          <div id="aiProgressBar" style="
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(90deg, #ff4d4d, #cc0000);
-            border-radius: 2px;
-            transition: width 0.3s ease;
-          "></div>
-        </div>
+      <!-- Earth Scanning Icon -->
+      <div class="scanning-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <!-- Scanning rings -->
+        <div class="scan-ring"></div>
+      </div>
+      
+      <!-- Text Content -->
+      <div class="text-content">
+        <div class="title">Classifying ${currentRegion}</div>
+        <div id="aiProcessingMessage" class="processing-message">Initializing scan...</div>
+      </div>
+      
+      <!-- Progress Bar -->
+      <div class="progress-container">
+        <div id="aiProgressBar" class="progress-bar"></div>
       </div>
     `;
   } else {
@@ -909,14 +803,10 @@ function showAIProcessingIndicator() {
   indicator.messageInterval = messageInterval;
 }
 
-// Hide AI processing indicator (desktop only)
+// Hide AI processing indicator (desktop and mobile)
 function hideAIProcessingIndicator() {
-  // Only hide on desktop
   const isMobileScreen = window.innerWidth <= 768;
-  if (isMobileScreen) {
-    console.log('📱 Mobile detected - skipping AI indicator hide');
-    return;
-  }
+  console.log('📱 Mobile detection for hide:', isMobileScreen, 'Screen width:', window.innerWidth);
   
   // Reset flag
   aiIndicatorActive = false;
@@ -1513,12 +1403,15 @@ function initMobileMapToggle() {
       mobileMapToggleFallback.style.display = 'none';
       if (locationIcon) locationIcon.style.display = 'none';
       if (authArea) authArea.style.display = 'none';
+      
     } else {
       // Show desktop elements, hide mobile nav
       mobileBottomNav.style.display = 'none';
       mobileMapToggleFallback.style.display = 'flex';
       if (locationIcon) locationIcon.style.display = 'flex';
       if (authArea) authArea.style.display = 'flex';
+      
+      
       // Reset to default state when not mobile
       if (!isMapVisible) {
         toggleMapVisibility();
@@ -1543,6 +1436,7 @@ function initMobileMapToggle() {
         layout.classList.remove('map-hidden');
         layout.classList.add('map-visible');
       }
+      
       
       if (mobileMapToggle) {
         mobileMapToggle.classList.add('active'); // Red when map is visible
@@ -1694,6 +1588,18 @@ function initMobileMapToggle() {
           mobileLocationShare.disabled = false;
         }, 2000);
       }
+    });
+  }
+  
+  
+  // Mobile AI classify button
+  const mobileAIClassify = document.getElementById('mobileAIClassify');
+  if (mobileAIClassify) {
+    mobileAIClassify.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      console.log('🧠 Mobile AI Classification button clicked');
+      await classifyAllNewsOnClick();
     });
   }
   
@@ -3120,6 +3026,361 @@ function severityFromCategory(cat = '') {
   if (c === 'culture' || c === 'society'|| c === 'demise') return 'yellow';
   return 'green';
 }
+
+// Get color for region highlighting based on signal indicator
+function getRegionHighlightColor(category) {
+  const severity = severityFromCategory(category);
+  switch (severity) {
+    case 'red': return '#fa0004';
+    case 'yellow': return '#ffee02';
+    case 'green': return '#2faf00';
+    default: return '#2faf00';
+  }
+}
+
+// Get opacity for region highlighting
+function getRegionHighlightOpacity(severity) {
+  switch (severity) {
+    case 'red': return 0.3;
+    case 'yellow': return 0.25;
+    case 'green': return 0.2;
+    default: return 0.2;
+  }
+}
+
+// Create region highlight circle - much larger to cover region area
+function createRegionHighlight(region, category) {
+  const severity = severityFromCategory(category);
+  const color = getRegionHighlightColor(category);
+  const opacity = getRegionHighlightOpacity(severity);
+  
+  // Different sizes based on severity - red regions get larger highlights
+  let size = 200; // Default size
+  if (severity === 'red') size = 300; // War/climate - largest
+  else if (severity === 'yellow') size = 250; // Culture/society - medium
+  else size = 200; // Others - smallest
+  
+  // Create a large circle element to represent the region area
+  const highlight = document.createElement('div');
+  highlight.className = `region-highlight ${severity}`;
+  highlight.style.cssText = `
+    width: ${size}px;
+    height: ${size}px;
+    border-radius: 50%;
+    background: ${color};
+    opacity: ${opacity};
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 ${size/2}px ${color}60;
+    transition: all 0.3s ease;
+    border: 3px solid ${color};
+  `;
+  
+  return highlight;
+}
+
+// Region highlights are now handled by region-specific overlays
+
+// Region highlights are now handled by region-specific overlays
+
+// Region highlights are now handled by region-specific overlays
+
+// Old polygon overlay function removed - using region-specific overlays instead
+
+// Old region overlay function removed - using region-specific overlays instead
+
+// Add region-specific overlays right below markers using administrative boundaries
+async function addRegionSpecificOverlays() {
+  if (!map || !map.isStyleLoaded()) return;
+  
+  // Wait for map to be ready
+  await new Promise(resolve => {
+    if (map.isStyleLoaded()) {
+      resolve();
+    } else {
+      map.on('styledata', resolve);
+    }
+  });
+  
+  // Clear existing region layers
+  if (map.getLayer('region-specific-fills')) {
+    map.removeLayer('region-specific-fills');
+  }
+  if (map.getLayer('region-specific-borders')) {
+    map.removeLayer('region-specific-borders');
+  }
+  if (map.getSource('region-specific-data')) {
+    map.removeSource('region-specific-data');
+  }
+  
+  // Create region-specific overlays
+  const regionFeatures = [];
+  
+  for (const region of regions) {
+    try {
+      const payload = await getRegionPayload(region._id);
+      const category = latestCategory(payload.items);
+      const severity = severityFromCategory(category);
+      const color = getRegionHighlightColor(category);
+      const opacity = getRegionHighlightOpacity(severity);
+      
+      // Create a larger circular area around each region marker
+      const radius = severity === 'red' ? 0.3 : severity === 'yellow' ? 0.25 : 0.2; // degrees
+      const center = [region.lng, region.lat];
+      
+      // Generate circle coordinates for the region area
+      const circle = [];
+      for (let i = 0; i < 32; i++) {
+        const angle = (i * 360) / 32;
+        const x = center[0] + radius * Math.cos(angle * Math.PI / 180);
+        const y = center[1] + radius * Math.sin(angle * Math.PI / 180);
+        circle.push([x, y]);
+      }
+      circle.push(circle[0]); // Close the polygon
+      
+      regionFeatures.push({
+        type: 'Feature',
+        properties: {
+          regionId: region._id,
+          regionName: region.name,
+          country: region.country,
+          category: category,
+          severity: severity,
+          color: color,
+          opacity: opacity
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [circle]
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to create overlay for region', region._id, e);
+    }
+  }
+  
+  // Add source and layers
+  map.addSource('region-specific-data', {
+    type: 'geojson',
+    data: {
+      type: 'FeatureCollection',
+      features: regionFeatures
+    }
+  });
+  
+  // Add fill layer
+  map.addLayer({
+    id: 'region-specific-fills',
+    type: 'fill',
+    source: 'region-specific-data',
+    paint: {
+      'fill-color': ['get', 'color'],
+      'fill-opacity': ['get', 'opacity']
+    }
+  });
+  
+  // Add border layer
+  map.addLayer({
+    id: 'region-specific-borders',
+    type: 'line',
+    source: 'region-specific-data',
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': 2,
+      'line-opacity': 0.8
+    }
+  });
+  
+  console.log(`🗺️ Added ${regionFeatures.length} region-specific overlays to map`);
+}
+
+// Add proper region shading using Mapbox's administrative boundaries
+async function addRegionShadingToMap() {
+  if (!map || !map.isStyleLoaded()) return;
+  
+  // Wait for map to be ready
+  await new Promise(resolve => {
+    if (map.isStyleLoaded()) {
+      resolve();
+    } else {
+      map.on('styledata', resolve);
+    }
+  });
+  
+  // Clear existing layers
+  if (map.getLayer('country-fills')) {
+    map.removeLayer('country-fills');
+  }
+  if (map.getLayer('country-borders')) {
+    map.removeLayer('country-borders');
+  }
+  if (map.getSource('mapbox-admin')) {
+    map.removeSource('mapbox-admin');
+  }
+  
+  // Add Mapbox's administrative boundaries as a source
+  map.addSource('mapbox-admin', {
+    type: 'vector',
+    url: 'mapbox://mapbox.country-boundaries-v1'
+  });
+  
+  // Create a mapping of countries to their signal colors based on regions
+  const countryColors = {};
+  const countrySeverityCounts = {};
+  
+  for (const region of regions) {
+    try {
+      const payload = await getRegionPayload(region._id);
+      const category = latestCategory(payload.items);
+      const severity = severityFromCategory(category);
+      
+      // Count severity types per country
+      if (!countrySeverityCounts[region.country]) {
+        countrySeverityCounts[region.country] = { red: 0, yellow: 0, green: 0 };
+      }
+      countrySeverityCounts[region.country][severity]++;
+    } catch (e) {
+      console.warn('Failed to get color for region', region._id, e);
+    }
+  }
+  
+  // Determine dominant severity for each country
+  for (const country in countrySeverityCounts) {
+    const counts = countrySeverityCounts[country];
+    let dominantSeverity = 'green';
+    let maxCount = 0;
+    
+    for (const severity in counts) {
+      if (counts[severity] > maxCount) {
+        maxCount = counts[severity];
+        dominantSeverity = severity;
+      }
+    }
+    
+    countryColors[country] = {
+      color: getRegionHighlightColor(dominantSeverity),
+      opacity: getRegionHighlightOpacity(dominantSeverity),
+      severity: dominantSeverity
+    };
+  }
+  
+  // Create country code mapping
+  const countryCodeMap = {
+    'Ukraine': 'UKR',
+    'Russia': 'RUS', 
+    'Poland': 'POL',
+    'Belarus': 'BLR',
+    'Moldova': 'MDA',
+    'Romania': 'ROU',
+    'Hungary': 'HUN',
+    'Slovakia': 'SVK',
+    'Germany': 'DEU',
+    'France': 'FRA',
+    'United Kingdom': 'GBR',
+    'United States': 'USA',
+    'China': 'CHN',
+    'India': 'IND',
+    'Brazil': 'BRA',
+    'Canada': 'CAN',
+    'Australia': 'AUS',
+    'Japan': 'JPN',
+    'South Korea': 'KOR',
+    'Italy': 'ITA',
+    'Spain': 'ESP',
+    'Netherlands': 'NLD',
+    'Sweden': 'SWE',
+    'Norway': 'NOR',
+    'Finland': 'FIN',
+    'Denmark': 'DNK',
+    'Turkey': 'TUR',
+    'Iran': 'IRN',
+    'Iraq': 'IRQ',
+    'Syria': 'SYR',
+    'Israel': 'ISR',
+    'Palestine': 'PSE',
+    'Egypt': 'EGY',
+    'Saudi Arabia': 'SAU',
+    'United Arab Emirates': 'ARE',
+    'South Africa': 'ZAF',
+    'Nigeria': 'NGA',
+    'Kenya': 'KEN',
+    'Ethiopia': 'ETH',
+    'Mexico': 'MEX',
+    'Argentina': 'ARG',
+    'Chile': 'CHL',
+    'Colombia': 'COL',
+    'Peru': 'PER',
+    'Venezuela': 'VEN'
+  };
+  
+  // Build the paint expression dynamically
+  let fillColorExpression = ['case'];
+  let borderColorExpression = ['case'];
+  
+  for (const country in countryColors) {
+    const countryCode = countryCodeMap[country];
+    if (countryCode) {
+      const colorData = countryColors[country];
+      fillColorExpression.push(['==', ['get', 'iso_3166_1_alpha_3'], countryCode], colorData.color);
+      borderColorExpression.push(['==', ['get', 'iso_3166_1_alpha_3'], countryCode], colorData.color);
+    }
+  }
+  
+  fillColorExpression.push('rgba(0,0,0,0)'); // Default transparent
+  borderColorExpression.push('rgba(0,0,0,0)'); // Default transparent
+  
+  // Add country fill layer
+  map.addLayer({
+    id: 'country-fills',
+    type: 'fill',
+    source: 'mapbox-admin',
+    'source-layer': 'country_boundaries',
+    paint: {
+      'fill-color': fillColorExpression,
+      'fill-opacity': 0.4
+    }
+  });
+  
+  // Add country borders
+  map.addLayer({
+    id: 'country-borders',
+    type: 'line',
+    source: 'mapbox-admin',
+    'source-layer': 'country_boundaries',
+    paint: {
+      'line-color': borderColorExpression,
+      'line-width': 2,
+      'line-opacity': 0.8
+    }
+  });
+  
+  console.log('🗺️ Added dynamic country-level region shading to map');
+  console.log('Country colors:', countryColors);
+}
+
+// Clear all region highlights
+function clearAllRegionHighlights() {
+  regionHighlights.forEach((highlight, regionId) => {
+    highlight.remove();
+  });
+  regionHighlights.clear();
+}
+
+// Toggle region highlights visibility
+let highlightsVisible = true;
+function toggleRegionHighlights() {
+  highlightsVisible = !highlightsVisible;
+  
+  // Toggle region-specific overlays only
+  if (map && map.getLayer('region-specific-fills')) {
+    map.setLayoutProperty('region-specific-fills', 'visibility', highlightsVisible ? 'visible' : 'none');
+    map.setLayoutProperty('region-specific-borders', 'visibility', highlightsVisible ? 'visible' : 'none');
+  }
+  
+  console.log(`Region highlights ${highlightsVisible ? 'enabled' : 'disabled'}`);
+}
 function ensureSignalStyles() {
   if (document.getElementById('severity-signal-styles')) return;
   const style = document.createElement('style');
@@ -3192,6 +3453,9 @@ async function initMap(){
   // Wait for map to load
   map.on('load', () => {
     console.log('🗺️ Mapbox map loaded successfully');
+    
+    // Add region-specific overlays right below markers
+    setTimeout(() => addRegionSpecificOverlays(), 1000);
   });
 }
 async function fetchRegions(){
@@ -3237,8 +3501,13 @@ async function fetchRegions(){
       selectCountry(firstCountry);
     }
     
-    // Render markers in background for better performance
-    setTimeout(() => renderAllRegionMarkers(), 100);
+  // Render markers in background for better performance
+  setTimeout(() => renderAllRegionMarkers(), 100);
+  
+  // Region highlights are now handled by region-specific overlays
+  
+  // Add region-specific overlays right below markers
+  setTimeout(() => addRegionSpecificOverlays(), 500);
     
     // Show visibility warning if user has restrictions
     showVisibilityWarning();
@@ -3318,6 +3587,9 @@ async function renderAllRegionMarkers(force=false){
         el.style.backgroundImage = `url('${iconUrl}')`;
         el.title = `${region.name} • ${dominantCategory}`;
       }
+      
+      // Update region highlight
+      updateRegionHighlight(region._id, dominantCategory);
     } catch (e) {
       console.warn('Marker render failed for region', region._id, e);
     }
@@ -3331,10 +3603,10 @@ async function selectRegion(regionId, force=false){
   const region = regions.find(r=>r._id===regionId);
   if(!region) return;
   
-  // Pan to region with smooth animation
+  // Pan to region with smooth animation and zoom in closer
   map.flyTo({
     center: [region.lng, region.lat],
-    zoom: 5,
+    zoom: 7, // Increased zoom level to show region better
     duration: 1000
   });
 
@@ -3357,6 +3629,41 @@ async function selectRegion(regionId, force=false){
       el.style.animation = '';
     }, 700);
   }
+  
+  // Region highlights are now handled by region-specific overlays
+}
+
+// Function to zoom to a specific country
+function zoomToCountry(countryName) {
+  if (!map) return;
+  
+  // Find all regions in the country
+  const countryRegions = regions.filter(r => r.country === countryName);
+  if (countryRegions.length === 0) return;
+  
+  // Calculate bounds for all regions in the country
+  const lngs = countryRegions.map(r => r.lng);
+  const lats = countryRegions.map(r => r.lat);
+  
+  const bounds = [
+    [Math.min(...lngs), Math.min(...lats)], // Southwest
+    [Math.max(...lngs), Math.max(...lats)]  // Northeast
+  ];
+  
+  // Add some padding to the bounds
+  const padding = 0.5; // degrees
+  bounds[0][0] -= padding;
+  bounds[0][1] -= padding;
+  bounds[1][0] += padding;
+  bounds[1][1] += padding;
+  
+  // Fit the map to show all regions in the country
+  map.fitBounds(bounds, {
+    padding: 50,
+    duration: 1500
+  });
+  
+  console.log(`🗺️ Zoomed to country: ${countryName}`);
 }
 
 // ---------- NEW: News Marquee functionality ----------
@@ -3800,6 +4107,30 @@ function initCustomSelectors() {
       if (regionPopup && regionPopup.classList.contains('show')) {
         hideRegionPopup();
       }
+    }
+    
+    // Toggle region highlights with 'H' key
+    if (e.key === 'h' || e.key === 'H') {
+      e.preventDefault();
+      toggleRegionHighlights();
+    }
+    
+    // Zoom to Ukraine with 'U' key
+    if (e.key === 'u' || e.key === 'U') {
+      e.preventDefault();
+      zoomToCountry('Ukraine');
+    }
+    
+    // Zoom to Russia with 'R' key
+    if (e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      zoomToCountry('Russia');
+    }
+    
+    // Zoom to Poland with 'P' key
+    if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      zoomToCountry('Poland');
     }
   });
 }

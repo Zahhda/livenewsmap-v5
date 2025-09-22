@@ -41,6 +41,13 @@ UserSchema.pre('save', function(next) {
   next();
 });
 
+// Virtual for profilePicture that maps to avatar
+UserSchema.virtual('profilePicture').get(function() {
+  return this.avatar || '';
+}).set(function(value) {
+  this.avatar = value;
+});
+
 // Hide internals client-side
 UserSchema.set('toJSON', {
   transform: function (doc, ret) {
