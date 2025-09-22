@@ -48,6 +48,53 @@ let regions = [];
 let byCountry = {};
 let currentRegionId = null;
 let aborter = null;
+
+// Location loading functions (defined early to avoid reference errors)
+function showLocationLoading() {
+  const loadingHTML = `
+    <div class="location-loading">
+      <div class="location-loading-content">
+        <div class="location-loading-spinner"></div>
+        <p class="location-loading-text">Location Sending</p>
+        <p class="location-loading-subtext">Please wait...</p>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', loadingHTML);
+}
+
+function hideLocationLoading() {
+  const loadingElement = document.querySelector('.location-loading');
+  if (loadingElement) {
+    loadingElement.remove();
+  }
+}
+
+function showLocationSentConfirmation() {
+  const sentHTML = `
+    <div class="location-loading">
+      <div class="location-loading-content">
+        <div class="location-sent-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" fill="#00b37e"/>
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="white"/>
+          </svg>
+        </div>
+        <p class="location-loading-text">Location Sent</p>
+        <p class="location-loading-subtext">Successfully shared</p>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', sentHTML);
+  
+  // Auto-hide after 2 seconds
+  setTimeout(() => {
+    const sentElement = document.querySelector('.location-loading');
+    if (sentElement) {
+      sentElement.remove();
+    }
+  }, 2000);
+}
 const cache = new Map(); // regionId -> { ts, payload }
 
 
@@ -58,10 +105,20 @@ let userVisibilitySettings = {
   hasVisibilityRestrictions: false
 };
 
-// Auto-refresh system
-let autoRefreshInterval = null;
+// Manual refresh only - no auto-refresh
 let lastRefreshTime = 0;
-const AUTO_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
+// Language setting
+let currentLanguage = 'en';
+
+// Toast function alias
+function showToast(message, type = 'info') {
+  if (window.toast) {
+    window.toast(message, type);
+  } else {
+    console.log(`Toast (${type}): ${message}`);
+  }
+}
 
 // Region request state
 let allAvailableCountries = [];
@@ -146,8 +203,9 @@ function showVisibilityWarning() {
 // ---------- Refresh System ----------
 
 // Enhanced refresh function with better error handling and fallbacks
-async function refreshData() {
-  const refreshBtn = document.getElementById('refreshBtn');
+async function refreshData(buttonId = 'refreshBtn') {
+  const refreshBtn = document.getElementById(buttonId);
+  if (!refreshBtn) return;
   const originalText = refreshBtn.innerHTML;
   
   // Add loading state
@@ -158,60 +216,39 @@ async function refreshData() {
     Refreshing...
   `;
   
-  // Set 5-second timeout
-  const refreshTimeout = setTimeout(() => {
-    refreshBtn.classList.remove('refresh-pulsing');
-    refreshBtn.disabled = false;
-    refreshBtn.innerHTML = originalText;
-  }, 5000);
-
-  try {
-    // Execute refresh operations in parallel with timeout
-    const refreshPromises = [
-      loadUserVisibilitySettings().catch(e => console.warn('Settings failed:', e)),
-      renderAllRegionMarkers(true).catch(e => console.warn('Regions failed:', e)),
-      refreshNewsData().catch(e => console.warn('News failed:', e))
-    ];
-    
-    await Promise.allSettled(refreshPromises);
-    
-    // Success
-    clearTimeout(refreshTimeout);
-    refreshBtn.classList.remove('refresh-pulsing');
-    refreshBtn.classList.add('refresh-success');
-    refreshBtn.innerHTML = `
-      <svg class="refresh-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/>
-      </svg>
-      Complete
-    `;
-    
+  // Start refresh operations in background (don't wait for them)
+  const refreshPromises = [
+    loadUserVisibilitySettings().catch(e => console.warn('Settings failed:', e)),
+    renderAllRegionMarkers(true).catch(e => console.warn('Regions failed:', e)),
+    refreshNewsData().catch(e => console.warn('News failed:', e))
+  ];
+  
+  // Wait exactly 4 seconds, then show completion
+  await new Promise(resolve => setTimeout(resolve, 4000));
+  
+  // Show completion after 4 seconds
+  refreshBtn.classList.remove('refresh-pulsing');
+  refreshBtn.classList.add('refresh-success');
+  refreshBtn.innerHTML = `
+    <svg class="refresh-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
+      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" fill="currentColor"/>
+    </svg>
+    Completed
+  `;
+  
+  // Show success toast
+  showToast('Refresh completed successfully', 'success');
+  
+  // Wait for background operations to complete, then reset button
+  Promise.allSettled(refreshPromises).then(() => {
+    console.log('Background refresh operations completed');
+    // Reset button only after background operations finish
     setTimeout(() => {
       refreshBtn.classList.remove('refresh-success', 'refresh-pulsing');
       refreshBtn.innerHTML = originalText;
       refreshBtn.disabled = false;
-    }, 2000);
-    
-  } catch (error) {
-    console.error('Refresh failed:', error);
-    clearTimeout(refreshTimeout);
-    
-    // Error
-    refreshBtn.classList.remove('refresh-pulsing');
-    refreshBtn.classList.add('refresh-error');
-    refreshBtn.innerHTML = `
-      <svg class="refresh-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
-      </svg>
-      Failed
-    `;
-    
-    setTimeout(() => {
-      refreshBtn.classList.remove('refresh-error', 'refresh-pulsing');
-      refreshBtn.innerHTML = originalText;
-      refreshBtn.disabled = false;
-    }, 2000);
-  }
+    }, 1000); // Small delay to show completion briefly
+  });
 }
 
 // Refresh news data with timeout and better error handling
@@ -346,28 +383,7 @@ function getTooltipIcon(type) {
   return icons[type] || '●';
 }
 
-// Auto-refresh system
-function startAutoRefresh() {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-  }
-  
-  autoRefreshInterval = setInterval(async () => {
-    const now = Date.now();
-    if (now - lastRefreshTime > AUTO_REFRESH_INTERVAL) {
-      console.log('Auto-refreshing data...');
-      await refreshData();
-      lastRefreshTime = now;
-    }
-  }, 60000); // Check every minute
-}
-
-function stopAutoRefresh() {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = null;
-  }
-}
+// Auto-refresh removed - only manual refresh on click
 
 // Smart refresh - only refresh if there might be new content
 async function smartRefresh() {
@@ -459,17 +475,35 @@ function cleanupRealTimeNotifications() {
 
 // Location sharing functionality
 function initLocationSharing() {
+  console.log('Initializing location sharing...');
   const locationIcon = document.getElementById('locationIcon');
-  if (!locationIcon) return;
+  if (!locationIcon) {
+    console.error('Location icon not found! Check if element exists in HTML');
+    return;
+  }
 
+  console.log('Location icon found:', locationIcon);
+  console.log('Location icon visible:', locationIcon.style.display);
+  console.log('Location icon disabled:', locationIcon.disabled);
+  
+  // Add a simple test click handler first
+  locationIcon.addEventListener('click', (event) => {
+    console.log('TEST: Basic click handler triggered!');
+  });
+  
   // Check if user is logged in and show/hide icon accordingly
   updateLocationIconVisibility();
 
   locationIcon.addEventListener('click', async (event) => {
+    console.log('Location icon clicked - event registered!');
+    console.log('Event details:', event);
     // Prevent any default behavior
     event.preventDefault();
     event.stopPropagation();
 
+    // Show loading animation with "Location Sending" text
+    showLocationLoading();
+    
     // Show loading state immediately
     locationIcon.style.background = 'linear-gradient(135deg, #555, #777)';
     locationIcon.querySelector('.location-icon').innerHTML = '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>';
@@ -518,6 +552,10 @@ function initLocationSharing() {
       // Send location to server
       await sendLocationToServer(latitude, longitude);
       
+      // Hide loading animation and show success
+      hideLocationLoading();
+      showLocationSentConfirmation();
+      
       // Show success state
       locationIcon.style.background = 'linear-gradient(135deg, #2d5a2d, #4a7c4a)';
       locationIcon.querySelector('.location-icon').innerHTML = '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
@@ -534,6 +572,9 @@ function initLocationSharing() {
       
     } catch (error) {
       console.error('Location sharing error:', error);
+      
+      // Hide loading animation
+      hideLocationLoading();
       
       // Show error state
       locationIcon.style.background = 'linear-gradient(135deg, #5a2d2d, #7c4a4a)';
@@ -558,14 +599,378 @@ function initLocationSharing() {
   });
 }
 
+// Mobile navigation functionality
+function initMobileMapToggle() {
+  const mobileBottomNav = document.getElementById('mobileBottomNav');
+  const mobileMapToggle = document.getElementById('mobileMapToggle');
+  const mobileLocationShare = document.getElementById('mobileLocationShare');
+  const mobileAccount = document.getElementById('mobileAccount');
+  const mobileMapToggleFallback = document.getElementById('mobileMapToggleFallback');
+  const mapContainer = document.getElementById('map');
+  const sidebar = document.querySelector('.sidebar');
+  const mapToggleIcon = document.getElementById('mapToggleIcon');
+  const mapToggleIconFallback = document.getElementById('mapToggleIconFallback');
+  const locationIcon = document.getElementById('locationIcon');
+  const authArea = document.getElementById('authArea');
+  
+  if (!mobileBottomNav || !mapContainer || !sidebar) return;
+  
+  let isMapVisible = false; // Start with map closed
+  
+  // Check if we're on mobile
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+  
+  // Update navigation visibility
+  function updateNavigationVisibility() {
+    if (isMobile()) {
+      // Show mobile bottom nav, hide desktop elements
+      mobileBottomNav.style.display = 'flex';
+      mobileMapToggleFallback.style.display = 'none';
+      if (locationIcon) locationIcon.style.display = 'none';
+      if (authArea) authArea.style.display = 'none';
+    } else {
+      // Show desktop elements, hide mobile nav
+      mobileBottomNav.style.display = 'none';
+      mobileMapToggleFallback.style.display = 'flex';
+      if (locationIcon) locationIcon.style.display = 'flex';
+      if (authArea) authArea.style.display = 'flex';
+      // Reset to default state when not mobile
+      if (!isMapVisible) {
+        toggleMapVisibility();
+      }
+    }
+  }
+  
+  // Toggle map visibility
+  function toggleMapVisibility() {
+    isMapVisible = !isMapVisible;
+    
+    // Get the layout element
+    const layout = document.querySelector('.layout');
+    
+    if (isMapVisible) {
+      // Show map
+      mapContainer.style.display = 'block';
+      sidebar.style.height = '40vh';
+      
+      // Update layout classes
+      if (layout) {
+        layout.classList.remove('map-hidden');
+        layout.classList.add('map-visible');
+      }
+      
+      if (mobileMapToggle) {
+        mobileMapToggle.classList.add('active'); // Red when map is visible
+        // Switch to close map icon and label
+        const closedMapIcon = document.getElementById('closedMapIcon');
+        const openMapIcon = document.getElementById('openMapIcon');
+        const mapToggleLabel = document.getElementById('mapToggleLabel');
+        if (closedMapIcon) closedMapIcon.style.display = 'none';
+        if (openMapIcon) openMapIcon.style.display = 'block';
+        if (mapToggleLabel) mapToggleLabel.textContent = 'Close Map';
+      }
+      if (mobileMapToggleFallback) {
+        mobileMapToggleFallback.classList.remove('map-hidden');
+        mapToggleIconFallback.textContent = '🗺️';
+      }
+    } else {
+      // Hide map
+      mapContainer.style.display = 'none';
+      sidebar.style.height = '100vh';
+      
+      // Update layout classes
+      if (layout) {
+        layout.classList.remove('map-visible');
+        layout.classList.add('map-hidden');
+      }
+      
+      if (mobileMapToggle) {
+        mobileMapToggle.classList.remove('active'); // Gray when map is hidden
+        // Switch to open map icon and label
+        const closedMapIcon = document.getElementById('closedMapIcon');
+        const openMapIcon = document.getElementById('openMapIcon');
+        const mapToggleLabel = document.getElementById('mapToggleLabel');
+        if (closedMapIcon) closedMapIcon.style.display = 'block';
+        if (openMapIcon) openMapIcon.style.display = 'none';
+        if (mapToggleLabel) mapToggleLabel.textContent = 'Open Map';
+      }
+      if (mobileMapToggleFallback) {
+        mobileMapToggleFallback.classList.add('map-hidden');
+        mapToggleIconFallback.textContent = '📰';
+      }
+    }
+  }
+  
+  // Mobile map toggle
+  if (mobileMapToggle) {
+    mobileMapToggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMapVisibility();
+    });
+  }
+  
+  // Desktop map toggle fallback
+  if (mobileMapToggleFallback) {
+    mobileMapToggleFallback.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMapVisibility();
+    });
+  }
+  
+  // Mobile location share
+  if (mobileLocationShare) {
+    mobileLocationShare.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // Show loading animation
+      showLocationLoading();
+      
+      // Show loading state immediately
+      mobileLocationShare.style.background = 'linear-gradient(135deg, #555, #777)';
+      mobileLocationShare.style.cursor = 'not-allowed';
+      mobileLocationShare.disabled = true;
+
+      try {
+        // Double-check authentication with fresh request
+        const user = await me();
+        if (!user) {
+          // Hide loading animation
+          hideLocationLoading();
+          // Reset button state
+          mobileLocationShare.style.background = 'linear-gradient(135deg, #333, #555)';
+          mobileLocationShare.style.cursor = 'pointer';
+          mobileLocationShare.disabled = false;
+          
+          openAuthModalSafely();
+          showNotification('Please log in to share your location', 'error');
+          return;
+        }
+
+        // Check if session is still valid
+        if (user.error) {
+          // Hide loading animation
+          hideLocationLoading();
+          // Reset button state
+          mobileLocationShare.style.background = 'linear-gradient(135deg, #333, #555)';
+          mobileLocationShare.style.cursor = 'pointer';
+          mobileLocationShare.disabled = false;
+          
+          showNotification('Session expired. Please log in again', 'error');
+          return;
+        }
+
+        // Get current location
+        const position = await getCurrentPosition();
+        const { latitude, longitude } = position.coords;
+        
+        // Send location to server
+        await sendLocationToServer(latitude, longitude);
+        
+        // Hide loading animation and show success
+        hideLocationLoading();
+        showLocationSentConfirmation();
+        
+        // Show success state
+        mobileLocationShare.style.background = 'linear-gradient(135deg, #2d5a2d, #4a7c4a)';
+        
+        showNotification('Location shared successfully', 'success');
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+          mobileLocationShare.style.background = 'linear-gradient(135deg, #333, #555)';
+          mobileLocationShare.style.cursor = 'pointer';
+          mobileLocationShare.disabled = false;
+        }, 2000);
+        
+      } catch (error) {
+        console.error('Location sharing error:', error);
+        
+        // Hide loading animation
+        hideLocationLoading();
+        
+        // Show error state
+        mobileLocationShare.style.background = 'linear-gradient(135deg, #5a2d2d, #7c4a4a)';
+        
+        // Check if it's an authentication error
+        if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('Not logged in')) {
+          openAuthModalSafely();
+          showNotification('Please log in to share your location', 'error');
+        } else {
+          showNotification('Failed to share location: ' + error.message, 'error');
+        }
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+          mobileLocationShare.style.background = 'linear-gradient(135deg, #333, #555)';
+          mobileLocationShare.style.cursor = 'pointer';
+          mobileLocationShare.disabled = false;
+        }, 2000);
+      }
+    });
+  }
+  
+  // Mobile account button
+  if (mobileAccount) {
+    mobileAccount.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Navigate to account page
+      window.location.href = '/account.html';
+    });
+  }
+  
+  // Mobile refresh button
+  const mobileRefreshBtn = document.getElementById('mobileRefreshBtn');
+  if (mobileRefreshBtn) {
+    mobileRefreshBtn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Trigger the same functionality as the desktop refresh button
+      await refreshData('mobileRefreshBtn');
+    });
+  }
+  
+  // Mobile country selector
+  const mobileCountrySelector = document.getElementById('mobileCountrySelector');
+  const mobileCountrySelectorText = document.getElementById('mobileCountrySelectorText');
+  if (mobileCountrySelector) {
+    mobileCountrySelector.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Trigger the same functionality as the desktop country selector
+      if (document.getElementById('countrySelector')) {
+        document.getElementById('countrySelector').click();
+      }
+    });
+  }
+  
+  // Mobile region selector
+  const mobileRegionSelector = document.getElementById('mobileRegionSelector');
+  const mobileRegionSelectorText = document.getElementById('mobileRegionSelectorText');
+  if (mobileRegionSelector) {
+    mobileRegionSelector.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Trigger the same functionality as the desktop region selector
+      if (document.getElementById('regionSelector')) {
+        document.getElementById('regionSelector').click();
+      }
+    });
+  }
+  
+  // Sync mobile selector text with desktop selectors
+  function syncMobileSelectors() {
+    if (mobileCountrySelectorText && document.getElementById('countrySelectorText')) {
+      mobileCountrySelectorText.textContent = document.getElementById('countrySelectorText').textContent;
+    }
+    if (mobileRegionSelectorText && document.getElementById('regionSelectorText')) {
+      mobileRegionSelectorText.textContent = document.getElementById('regionSelectorText').textContent;
+    }
+  }
+  
+  // Update visibility on window resize
+  window.addEventListener('resize', updateNavigationVisibility);
+  
+  // Initialize map as closed
+  function initializeMapState() {
+    // Get the layout element
+    const layout = document.querySelector('.layout');
+    
+    if (isMapVisible) {
+      // Show map
+      mapContainer.style.display = 'block';
+      sidebar.style.height = '40vh';
+      
+      // Update layout classes
+      if (layout) {
+        layout.classList.remove('map-hidden');
+        layout.classList.add('map-visible');
+      }
+      
+      if (mobileMapToggle) {
+        mobileMapToggle.classList.add('active');
+        const closedMapIcon = document.getElementById('closedMapIcon');
+        const openMapIcon = document.getElementById('openMapIcon');
+        const mapToggleLabel = document.getElementById('mapToggleLabel');
+        if (closedMapIcon) closedMapIcon.style.display = 'none';
+        if (openMapIcon) openMapIcon.style.display = 'block';
+        if (mapToggleLabel) mapToggleLabel.textContent = 'Close Map';
+      }
+    } else {
+      // Hide map
+      mapContainer.style.display = 'none';
+      sidebar.style.height = '100vh';
+      
+      // Update layout classes
+      if (layout) {
+        layout.classList.remove('map-visible');
+        layout.classList.add('map-hidden');
+      }
+      
+      if (mobileMapToggle) {
+        mobileMapToggle.classList.remove('active');
+        const closedMapIcon = document.getElementById('closedMapIcon');
+        const openMapIcon = document.getElementById('openMapIcon');
+        const mapToggleLabel = document.getElementById('mapToggleLabel');
+        if (closedMapIcon) closedMapIcon.style.display = 'block';
+        if (openMapIcon) openMapIcon.style.display = 'none';
+        if (mapToggleLabel) mapToggleLabel.textContent = 'Open Map';
+      }
+    }
+  }
+
+
+  // Show location sent animation
+  function showLocationSent() {
+    const sentHTML = `
+      <div class="location-sent">
+        <div class="location-sent-content">
+          <div class="location-sent-icon">✓</div>
+          <p class="location-sent-text">Location Sent!</p>
+          <p class="location-sent-subtext">Your location has been shared</p>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', sentHTML);
+    
+    // Auto-hide after 2 seconds
+    setTimeout(() => {
+      const sentElement = document.querySelector('.location-sent');
+      if (sentElement) {
+        sentElement.remove();
+      }
+    }, 2000);
+  }
+
+  // Initial setup
+  updateNavigationVisibility();
+  syncMobileSelectors();
+  initializeMapState();
+  
+  // Sync selectors periodically
+  setInterval(syncMobileSelectors, 1000);
+}
+
 // Update location icon visibility based on login status
 async function updateLocationIconVisibility() {
+  console.log('Updating location icon visibility...');
   const locationIcon = document.getElementById('locationIcon');
-  if (!locationIcon) return;
+  if (!locationIcon) {
+    console.error('Location icon not found in updateLocationIconVisibility');
+    return;
+  }
 
   const user = await me();
+  console.log('User status:', user);
+  
   if (user) {
     // User is logged in - enable functionality
+    console.log('User logged in - enabling location icon');
     locationIcon.style.display = 'flex';
     locationIcon.style.cursor = 'pointer';
     locationIcon.disabled = false;
@@ -574,6 +979,7 @@ async function updateLocationIconVisibility() {
     locationIcon.style.pointerEvents = 'auto';
   } else {
     // User is not logged in - show icon but require login
+    console.log('User not logged in - showing disabled location icon');
     locationIcon.style.display = 'flex';
     locationIcon.style.cursor = 'pointer';
     locationIcon.disabled = false;
@@ -581,6 +987,13 @@ async function updateLocationIconVisibility() {
     locationIcon.title = 'Click to log in and share your location';
     locationIcon.style.pointerEvents = 'auto';
   }
+  
+  console.log('Location icon final state:', {
+    display: locationIcon.style.display,
+    disabled: locationIcon.disabled,
+    opacity: locationIcon.style.opacity,
+    pointerEvents: locationIcon.style.pointerEvents
+  });
 }
 
 // Make this function globally available for auth system
@@ -2696,11 +3109,10 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   startAuthCheck();
 
   document.getElementById('refreshBtn').addEventListener('click', async ()=>{
-    await refreshData();
+    await refreshData('refreshBtn');
   });
   
-  // Start auto-refresh system
-  startAutoRefresh();
+  // Auto-refresh removed - only manual refresh on click
 
   // Start news marquee
   startMarquee();
@@ -2724,6 +3136,9 @@ initLocationSharing();
 // Update location icon visibility on page load
 updateLocationIconVisibility();
 
+// Initialize mobile map toggle
+initMobileMapToggle();
+
 // Start periodic authentication check
 startAuthCheck();
   
@@ -2731,7 +3146,6 @@ startAuthCheck();
   window.addEventListener('beforeunload', () => {
     cleanupRealTimeNotifications();
     stopAuthCheck();
-    stopAutoRefresh();
   });
 
   // Region request modal event listeners
